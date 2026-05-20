@@ -318,3 +318,102 @@ export const CREATE_STUDY_ROOM_MUTATION = /* GraphQL */ `
     createStudyRoom(input: $input) { id name }
   }
 `;
+
+/* ---------------------------------- admin ---------------------------------- */
+
+export const ADMIN_USER_FRAGMENT = /* GraphQL */ `
+  fragment AdminUserFields on AdminUserView {
+    id
+    email
+    username
+    fullName
+    avatarUrl
+    college { id name domain country }
+    department
+    graduationYear
+    role
+    status
+    emailVerified
+    isVerifiedStudent
+    onboardingCompleted
+    reputationScore
+    createdAt
+  }
+`;
+
+export const ADMIN_USERS_QUERY = /* GraphQL */ `
+  query AdminUsers($status: UserStatus, $search: String, $after: String) {
+    adminUsers(status: $status, search: $search, first: 30, after: $after) {
+      nodes { ...AdminUserFields }
+      pageInfo { hasNextPage endCursor }
+      totalCount
+    }
+  }
+  ${ADMIN_USER_FRAGMENT}
+`;
+
+export const ADMIN_VERIFY_USER_MUTATION = /* GraphQL */ `
+  mutation AdminVerifyUser($userId: ID!) {
+    adminVerifyUser(userId: $userId) { ...AdminUserFields }
+  }
+  ${ADMIN_USER_FRAGMENT}
+`;
+
+export const ADMIN_SET_USER_ROLE_MUTATION = /* GraphQL */ `
+  mutation AdminSetRole($userId: ID!, $role: UserRole!) {
+    adminSetUserRole(userId: $userId, role: $role) { ...AdminUserFields }
+  }
+  ${ADMIN_USER_FRAGMENT}
+`;
+
+export const ADMIN_BAN_USER_MUTATION = /* GraphQL */ `
+  mutation AdminBan($userId: ID!, $reason: String!) {
+    banUser(userId: $userId, reason: $reason) { ...AdminUserFields }
+  }
+  ${ADMIN_USER_FRAGMENT}
+`;
+
+export const ADMIN_UNBAN_USER_MUTATION = /* GraphQL */ `
+  mutation AdminUnban($userId: ID!) {
+    unbanUser(userId: $userId) { ...AdminUserFields }
+  }
+  ${ADMIN_USER_FRAGMENT}
+`;
+
+export const ADMIN_CREATE_USER_MUTATION = /* GraphQL */ `
+  mutation AdminCreateUser($input: AdminCreateUserInput!) {
+    adminCreateUser(input: $input) { ...AdminUserFields }
+  }
+  ${ADMIN_USER_FRAGMENT}
+`;
+
+export const ADMIN_COLLEGES_QUERY = /* GraphQL */ `
+  query AdminColleges($search: String) {
+    adminColleges(search: $search) {
+      id
+      name
+      domain
+      country
+      createdAt
+      userCount
+    }
+  }
+`;
+
+export const ADMIN_CREATE_COLLEGE_MUTATION = /* GraphQL */ `
+  mutation AdminCreateCollege($input: AdminCreateCollegeInput!) {
+    adminCreateCollege(input: $input) { id name domain country }
+  }
+`;
+
+export const ADMIN_UPDATE_COLLEGE_MUTATION = /* GraphQL */ `
+  mutation AdminUpdateCollege($id: ID!, $input: AdminUpdateCollegeInput!) {
+    adminUpdateCollege(id: $id, input: $input) { id name domain country }
+  }
+`;
+
+export const ADMIN_DELETE_COLLEGE_MUTATION = /* GraphQL */ `
+  mutation AdminDeleteCollege($id: ID!) {
+    adminDeleteCollege(id: $id)
+  }
+`;

@@ -97,7 +97,6 @@ export default function AdminPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="font-display text-2xl font-bold">Admin</h1>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         {q.data ? (
           <>
