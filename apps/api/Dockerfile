@@ -14,8 +14,7 @@ COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 
 # Install everything (we only need apps/api but pnpm needs the full graph).
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile
 
 ################################################
 # Stage 2 — build API
