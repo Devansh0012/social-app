@@ -3,8 +3,14 @@
 ################################################
 FROM node:20-bookworm-slim AS deps
 
-ENV PNPM_HOME="/pnpm" PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+
+# OpenSSL + ca-certificates are required by Prisma at install time.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && corepack enable
 
 WORKDIR /repo
 
@@ -21,8 +27,13 @@ RUN pnpm install --frozen-lockfile
 ################################################
 FROM node:20-bookworm-slim AS build
 
-ENV PNPM_HOME="/pnpm" PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && corepack enable
 
 WORKDIR /repo
 COPY --from=deps /repo /repo
@@ -37,8 +48,14 @@ RUN pnpm --filter @braventex/api build
 FROM node:20-bookworm-slim AS runtime
 
 ENV NODE_ENV=production
-ENV PNPM_HOME="/pnpm" PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+
+# Runtime needs OpenSSL too (Prisma client TLS to Neon).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && corepack enable
 
 WORKDIR /app
 
