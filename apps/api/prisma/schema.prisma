@@ -1,0 +1,553 @@
+// Braventex Prisma schema
+//
+// Modular monolith — every domain module reads/writes against this schema.
+// Counters (likeCount, memberCount, etc.) are denormalised and maintained
+// inside transactions in the corresponding service. Soft deletes use deletedAt.
+//
+// All ids are CUIDs (collision-resistant, URL-safe, sortable-ish).
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  // Neon (and other poolers like pgbouncer) use a separate non-pooled URL
+  // for migrations. Set DIRECT_DATABASE_URL in prod; falls back to DATABASE_URL
+  // in dev where you usually point at a single connection.
+  directUrl  = env("DIRECT_DATABASE_URL")
+  extensions = [pg_trgm]
+}
+
+/// ====================================================================
+/// Enums
+/// ====================================================================
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  BANNED
+}
+
+enum PostType {
+  TEXT
+  IMAGE
+  MARKDOWN
+  LINK
+  COLLAB
+}
+
+enum CommunityPrivacy {
+  PUBLIC
+  RESTRICTED
+  PRIVATE
+}
+
+enum CommunityRole {
+  MEMBER
+  MODERATOR
+  CREATOR
+}
+
+enum NotificationType {
+  POST_LIKE
+  POST_COMMENT
+  COMMENT_REPLY
+  COLLAB_REQUEST
+  COLLAB_RESPONSE
+  COMMUNITY_INVITE
+  MENTION
+  SYSTEM
+}
+
+enum CollabProjectType {
+  HACKATHON
+  PROJECT
+  RESEARCH
+  STARTUP
+}
+
+enum CollabDuration {
+  SHORT
+  MEDIUM
+  LONG
+  ONGOING
+}
+
+enum CollabLocation {
+  REMOTE
+  IN_PERSON
+  HYBRID
+}
+
+enum CollabApplicationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum ReportTargetType {
+  POST
+  COMMENT
+  USER
+  COMMUNITY
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+enum AnalyticsEventType {
+  POST_VIEW
+  POST_LIKE
+  POST_UNLIKE
+  POST_BOOKMARK
+  POST_SHARE
+  POST_COMMENT
+  POST_DWELL
+  COMMUNITY_JOIN
+  COMMUNITY_LEAVE
+  STUDY_MATERIAL_DOWNLOAD
+  STUDY_MATERIAL_VIEW
+  SEARCH
+  STUDY_ROOM_JOIN
+}
+
+/// ====================================================================
+/// College
+/// ====================================================================
+
+model College {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  domain    String   @unique // e.g. "stanford.edu"
+  country   String?
+  createdAt DateTime @default(now())
+
+  users          User[]
+  studyMaterials StudyMaterial[]
+
+  @@index([domain])
+}
+
+/// ====================================================================
+/// User & Auth
+/// ====================================================================
+
+model User {
+  id                String     @id @default(cuid())
+  email             String     @unique
+  username          String     @unique
+  fullName          String
+  passwordHash      String
+  bio               String?
+  avatarUrl         String?
+  collegeId         String
+  college           College    @relation(fields: [collegeId], references: [id])
+  department        String?
+  graduationYear    Int?
+  reputationScore   Int        @default(0)
+  emailVerified     Boolean    @default(false)
+  isVerifiedStudent Boolean    @default(false)
+  onboardingCompleted Boolean  @default(false)
+  role              Role       @default(USER)
+  status            UserStatus @default(PENDING_VERIFICATION)
+  socialLinks       Json?
+  interests         String[]
+  skills            String[]
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  posts                  Post[]                   @relation("PostAuthor")
+  comments               Comment[]
+  likes                  PostLike[]
+  bookmarks              Bookmark[]
+  communitiesCreated     Community[]              @relation("CommunityCreator")
+  memberships            CommunityMember[]
+  refreshTokens          RefreshToken[]
+  emailVerifyTokens      EmailVerificationToken[]
+  passwordResetTokens    PasswordResetToken[]
+  notifications          Notification[]           @relation("NotificationRecipient")
+  notificationActor      Notification[]           @relation("NotificationActor")
+  studyMaterials         StudyMaterial[]
+  studyMaterialDownloads StudyMaterialDownload[]
+  studyRoomsCreated      StudyRoom[]              @relation("StudyRoomCreator")
+  roomMemberships        StudyRoomMember[]
+  roomMessages           StudyRoomMessage[]
+  collabApplications     CollabApplication[]
+  analyticsEvents        AnalyticsEvent[]
+  reportsCreated         Report[]                 @relation("ReportReporter")
+  reportsTargeted        Report[]                 @relation("ReportTargetUser")
+
+  @@index([collegeId])
+  @@index([username])
+  @@index([email])
+  @@index([status])
+}
+
+model RefreshToken {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash    String    @unique
+  family       String
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?
+  createdAt    DateTime  @default(now())
+
+  @@index([userId])
+  @@index([family])
+  @@index([expiresAt])
+}
+
+model EmailVerificationToken {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+}
+
+/// ====================================================================
+/// Community
+/// ====================================================================
+
+model Community {
+  id          String           @id @default(cuid())
+  slug        String           @unique
+  name        String
+  description String?
+  iconUrl     String?
+  bannerUrl   String?
+  tags        String[]
+  privacy     CommunityPrivacy @default(PUBLIC)
+  creatorId   String
+  creator     User             @relation("CommunityCreator", fields: [creatorId], references: [id])
+  memberCount Int              @default(0)
+  postCount   Int              @default(0)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  deletedAt   DateTime?
+
+  members CommunityMember[]
+  posts   Post[]
+
+  @@index([slug])
+  @@index([creatorId])
+  @@index([createdAt])
+  @@index([tags], type: Gin)
+}
+
+model CommunityMember {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  communityId String
+  community   Community     @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  role        CommunityRole @default(MEMBER)
+  joinedAt    DateTime      @default(now())
+
+  @@unique([userId, communityId])
+  @@index([communityId, role])
+  @@index([userId])
+}
+
+/// ====================================================================
+/// Post & Engagement
+/// ====================================================================
+
+model Post {
+  id             String     @id @default(cuid())
+  authorId       String
+  author         User       @relation("PostAuthor", fields: [authorId], references: [id])
+  communityId    String?
+  community      Community? @relation(fields: [communityId], references: [id])
+  type           PostType
+  title          String?
+  body           String?
+  linkUrl        String?
+  imageUrls      String[]
+  tags           String[]
+  likeCount      Int        @default(0)
+  commentCount   Int        @default(0)
+  bookmarkCount  Int        @default(0)
+  shareCount     Int        @default(0)
+  viewCount      Int        @default(0)
+  hotScore       Float      @default(0)
+  publishedAt    DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  deletedAt      DateTime?
+  removedByAdmin Boolean    @default(false)
+
+  collab    CollabPost?
+  comments  Comment[]
+  likes     PostLike[]
+  bookmarks Bookmark[]
+
+  @@index([authorId, publishedAt])
+  @@index([communityId, publishedAt])
+  @@index([type, publishedAt])
+  @@index([hotScore(sort: Desc)])
+  @@index([publishedAt(sort: Desc)])
+  @@index([tags], type: Gin)
+}
+
+model CollabPost {
+  postId         String              @id
+  post           Post                @relation(fields: [postId], references: [id], onDelete: Cascade)
+  projectTitle   String
+  requiredSkills String[]
+  projectType    CollabProjectType
+  duration       CollabDuration
+  teamSize       Int
+  locationType   CollabLocation
+  openSlots      Int
+  isClosed       Boolean             @default(false)
+
+  applications CollabApplication[]
+
+  @@index([projectType])
+  @@index([isClosed])
+}
+
+model CollabApplication {
+  id           String                  @id @default(cuid())
+  collabPostId String
+  collabPost   CollabPost              @relation(fields: [collabPostId], references: [postId], onDelete: Cascade)
+  applicantId  String
+  applicant    User                    @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  message      String
+  status       CollabApplicationStatus @default(PENDING)
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+
+  @@unique([collabPostId, applicantId])
+  @@index([applicantId])
+  @@index([status])
+}
+
+model Comment {
+  id        String    @id @default(cuid())
+  postId    String
+  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User      @relation(fields: [authorId], references: [id])
+  parentId  String?
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentReplies")
+  body      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([postId, createdAt])
+  @@index([parentId])
+  @@index([authorId])
+}
+
+model PostLike {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, postId])
+  @@index([postId])
+  @@index([userId, createdAt])
+}
+
+model Bookmark {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, postId])
+  @@index([userId, createdAt])
+}
+
+/// ====================================================================
+/// Study Material
+/// ====================================================================
+
+model StudyMaterial {
+  id            String    @id @default(cuid())
+  uploaderId    String
+  uploader      User      @relation(fields: [uploaderId], references: [id])
+  collegeId     String?
+  college       College?  @relation(fields: [collegeId], references: [id])
+  title         String
+  description   String?
+  department    String?
+  semester      Int?
+  subject       String?
+  tags          String[]
+  fileKey       String?
+  fileMime      String?
+  fileSize      Int?
+  externalUrl   String?
+  downloadCount Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  downloads StudyMaterialDownload[]
+
+  @@index([collegeId, department, semester])
+  @@index([subject])
+  @@index([uploaderId])
+  @@index([tags], type: Gin)
+}
+
+model StudyMaterialDownload {
+  id         String        @id @default(cuid())
+  materialId String
+  material   StudyMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime      @default(now())
+
+  @@index([materialId])
+  @@index([userId, createdAt])
+}
+
+/// ====================================================================
+/// Study Room
+/// ====================================================================
+
+model StudyRoom {
+  id              String             @id @default(cuid())
+  name            String
+  description     String?
+  creatorId       String
+  creator         User               @relation("StudyRoomCreator", fields: [creatorId], references: [id])
+  topic           String?
+  maxParticipants Int                @default(20)
+  isActive        Boolean            @default(true)
+  pomodoroState   Json?
+  createdAt       DateTime           @default(now())
+  closedAt        DateTime?
+
+  members  StudyRoomMember[]
+  messages StudyRoomMessage[]
+
+  @@index([isActive, createdAt])
+  @@index([creatorId])
+}
+
+model StudyRoomMember {
+  id       String    @id @default(cuid())
+  roomId   String
+  room     StudyRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt DateTime  @default(now())
+  leftAt   DateTime?
+
+  @@unique([roomId, userId])
+  @@index([userId])
+}
+
+model StudyRoomMessage {
+  id        String    @id @default(cuid())
+  roomId    String
+  room      StudyRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime  @default(now())
+
+  @@index([roomId, createdAt])
+}
+
+/// ====================================================================
+/// Notifications
+/// ====================================================================
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actorId   String?
+  actor     User?            @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  type      NotificationType
+  payload   Json
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+}
+
+/// ====================================================================
+/// Analytics (recommendation-ready event log)
+/// ====================================================================
+
+model AnalyticsEvent {
+  id         String             @id @default(cuid())
+  userId     String?
+  user       User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type       AnalyticsEventType
+  targetType String?
+  targetId   String?
+  metadata   Json?
+  sessionId  String?
+  createdAt  DateTime           @default(now())
+
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
+  @@index([targetType, targetId])
+}
+
+/// ====================================================================
+/// Moderation
+/// ====================================================================
+
+model Report {
+  id           String           @id @default(cuid())
+  reporterId   String
+  reporter     User             @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  targetType   ReportTargetType
+  targetId     String
+  targetUserId String?
+  targetUser   User?            @relation("ReportTargetUser", fields: [targetUserId], references: [id])
+  reason       String
+  status       ReportStatus     @default(OPEN)
+  resolvedAt   DateTime?
+  resolution   String?
+  createdAt    DateTime         @default(now())
+
+  @@index([status, createdAt])
+  @@index([targetType, targetId])
+}
