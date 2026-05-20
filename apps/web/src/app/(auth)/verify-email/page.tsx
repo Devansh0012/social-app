@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,25 @@ import { useAuthStore, type Viewer } from '@/lib/auth-store';
 const inflight = new Map<string, Promise<Viewer>>();
 
 export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={<VerifyFallback />}>
+      <VerifyEmailInner />
+    </Suspense>
+  );
+}
+
+function VerifyFallback() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Verifying your email…</CardTitle>
+        <CardDescription>Hang tight.</CardDescription>
+      </CardHeader>
+    </Card>
+  );
+}
+
+function VerifyEmailInner() {
   const router = useRouter();
   const params = useSearchParams();
   const token = params.get('token');
@@ -59,7 +78,11 @@ export default function VerifyEmailPage() {
     <Card>
       <CardHeader>
         <CardTitle>
-          {status === 'done' ? 'Email verified ✓' : status === 'error' ? 'Verification problem' : 'Verifying your email…'}
+          {status === 'done'
+            ? 'Email verified ✓'
+            : status === 'error'
+              ? 'Verification problem'
+              : 'Verifying your email…'}
         </CardTitle>
         <CardDescription>
           {status === 'done'
