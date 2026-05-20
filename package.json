@@ -1,0 +1,39 @@
+{
+  "name": "braventex",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Braventex — a student-only collaboration & community platform.",
+  "packageManager": "pnpm@10.32.1",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel --stream run dev",
+    "build": "pnpm -r run build",
+    "lint": "pnpm -r run lint",
+    "typecheck": "pnpm -r run typecheck",
+    "db:up": "docker compose up -d postgres adminer",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f postgres",
+    "prisma:generate": "pnpm --filter @braventex/api exec prisma generate",
+    "prisma:migrate": "pnpm --filter @braventex/api exec prisma migrate dev",
+    "prisma:studio": "pnpm --filter @braventex/api exec prisma studio",
+    "prisma:seed": "pnpm --filter @braventex/api exec prisma db seed",
+    "api:dev": "pnpm --filter @braventex/api dev",
+    "web:dev": "pnpm --filter @braventex/web dev"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "argon2",
+      "esbuild",
+      "prisma",
+      "sharp"
+    ]
+  }
+}
