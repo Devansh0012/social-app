@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import {
   Heart,
@@ -61,35 +62,57 @@ export interface PostNode {
 
 export function PostCard({ post: initial }: { post: PostNode }) {
   const [post, setPost] = useState(initial);
+  const qc = useQueryClient();
+
+  // Resync when the parent passes a refreshed version (e.g. feed re-fetch).
+  useEffect(() => {
+    setPost(initial);
+  }, [initial.id, initial.likeCount, initial.bookmarkCount, initial.viewerHasLiked, initial.viewerHasBookmarked, initial.commentCount]);
+
+  function applyToCaches(patch: Partial<PostNode>) {
+    // Patch every cached query that holds this post so navigating away and
+    // back (within the React Query stale window) doesn't show old counts.
+    qc.setQueriesData<unknown>({ predicate: () => true }, (old: unknown) =>
+      patchPostInCache(old, post.id, patch),
+    );
+  }
 
   async function onLike() {
     const liked = post.viewerHasLiked;
-    setPost((p) => ({
-      ...p,
+    const patch = {
       viewerHasLiked: !liked,
-      likeCount: p.likeCount + (liked ? -1 : 1),
-    }));
+      likeCount: post.likeCount + (liked ? -1 : 1),
+    };
+    setPost((p) => ({ ...p, ...patch }));
+    applyToCaches(patch);
     try {
       await gql(liked ? UNLIKE_POST_MUTATION : LIKE_POST_MUTATION, { postId: post.id });
     } catch {
-      setPost((p) => ({ ...p, viewerHasLiked: liked, likeCount: p.likeCount + (liked ? 1 : -1) }));
+      const revert = {
+        viewerHasLiked: liked,
+        likeCount: post.likeCount,
+      };
+      setPost((p) => ({ ...p, ...revert }));
+      applyToCaches(revert);
     }
   }
   async function onBookmark() {
     const saved = post.viewerHasBookmarked;
-    setPost((p) => ({
-      ...p,
+    const patch = {
       viewerHasBookmarked: !saved,
-      bookmarkCount: p.bookmarkCount + (saved ? -1 : 1),
-    }));
+      bookmarkCount: post.bookmarkCount + (saved ? -1 : 1),
+    };
+    setPost((p) => ({ ...p, ...patch }));
+    applyToCaches(patch);
     try {
       await gql(saved ? UNBOOKMARK_POST_MUTATION : BOOKMARK_POST_MUTATION, { postId: post.id });
     } catch {
-      setPost((p) => ({
-        ...p,
+      const revert = {
         viewerHasBookmarked: saved,
-        bookmarkCount: p.bookmarkCount + (saved ? 1 : -1),
-      }));
+        bookmarkCount: post.bookmarkCount,
+      };
+      setPost((p) => ({ ...p, ...revert }));
+      applyToCaches(revert);
     }
   }
 
@@ -222,6 +245,40 @@ export function PostCard({ post: initial }: { post: PostNode }) {
       </div>
     </article>
   );
+}
+
+/**
+ * Recursive cache patcher. React Query cache holds arbitrarily-shaped
+ * payloads (feed pages, post detail, infinite-query arrays). Walk every
+ * object we can reach and apply `patch` to anything that looks like a Post
+ * with the right id. Idempotent + safe on unrelated shapes.
+ */
+function patchPostInCache(node: unknown, postId: string, patch: Partial<PostNode>): unknown {
+  if (Array.isArray(node)) {
+    let changed = false;
+    const next = node.map((item) => {
+      const updated = patchPostInCache(item, postId, patch);
+      if (updated !== item) changed = true;
+      return updated;
+    });
+    return changed ? next : node;
+  }
+  if (node && typeof node === 'object') {
+    const obj = node as Record<string, unknown>;
+    // Is this object itself the post?
+    if (typeof obj.id === 'string' && obj.id === postId && 'viewerHasLiked' in obj) {
+      return { ...obj, ...patch };
+    }
+    let changed = false;
+    const next: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(obj)) {
+      const updated = patchPostInCache(val, postId, patch);
+      if (updated !== val) changed = true;
+      next[key] = updated;
+    }
+    return changed ? next : node;
+  }
+  return node;
 }
 
 function CollabSummary({ collab }: { collab: NonNullable<PostNode['collab']> }) {

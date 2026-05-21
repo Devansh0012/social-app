@@ -267,6 +267,35 @@ export const UNBOOKMARK_POST_MUTATION = /* GraphQL */ `
   }
 `;
 
+export const POST_DETAIL_QUERY = /* GraphQL */ `
+  query PostDetail($id: ID!) {
+    post(id: $id) { ...PostFields }
+    postComments(postId: $id) {
+      id
+      postId
+      parentId
+      body
+      createdAt
+      author { ...PublicUserFields }
+    }
+  }
+  ${POST_FRAGMENT}
+`;
+
+export const ADD_COMMENT_MUTATION = /* GraphQL */ `
+  mutation AddComment($input: CreateCommentInput!) {
+    addComment(input: $input) {
+      id
+      postId
+      parentId
+      body
+      createdAt
+      author { ...PublicUserFields }
+    }
+  }
+  ${PUBLIC_USER_FRAGMENT}
+`;
+
 export const USER_PROFILE_QUERY = /* GraphQL */ `
   query UserProfile($username: String!) {
     user(username: $username) { ...PublicUserFields }

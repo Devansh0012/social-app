@@ -9,6 +9,7 @@ import {
   PaginationInput,
   type Connection,
 } from '../../core/pagination.js';
+import { rankedFeed } from './ranker.js';
 
 const PostBase = z.object({
   communityId: z.string().cuid().nullish(),
@@ -172,9 +173,18 @@ export class PostService {
           };
         break;
 
-      case 'FOLLOWING':
-      case 'PERSONALIZED': {
-        // MVP: posts from communities the viewer is a member of, fall back to global.
+      case 'PERSONALIZED':
+      case 'FOLLOWING': {
+        // For PERSONALIZED first page (no cursor) we run the X-inspired
+        // ranker. Subsequent pages (and the FOLLOWING feed) fall back to a
+        // chronological view of communities the viewer is in.
+        if (args.kind === 'PERSONALIZED' && args.viewerId && !cursor) {
+          const ranked = await rankedFeed(prisma, args.viewerId, pag.first, new Set());
+          return buildConnection(ranked, pag.first, (p) => ({
+            at: p.publishedAt.toISOString(),
+            id: p.id,
+          }));
+        }
         if (args.viewerId) {
           const memberships = await prisma.communityMember.findMany({
             where: { userId: args.viewerId },
