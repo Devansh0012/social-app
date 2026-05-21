@@ -12,6 +12,7 @@ import {
   LogOut,
   Sparkles,
   Plus,
+  MessageSquare,
 } from 'lucide-react';
 import { type ReactNode, useEffect } from 'react';
 import { Avatar } from '@/components/ui/avatar';
@@ -31,6 +32,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { href: '/feed', label: 'Feed', icon: <Home className="h-4 w-4" /> },
   { href: '/communities', label: 'Communities', icon: <Users className="h-4 w-4" /> },
+  { href: '/messages', label: 'Messages', icon: <MessageSquare className="h-4 w-4" /> },
   { href: '/discover', label: 'Discover', icon: <Compass className="h-4 w-4" /> },
   { href: '/study-rooms', label: 'Study Rooms', icon: <BookOpen className="h-4 w-4" /> },
   { href: '/notifications', label: 'Notifications', icon: <Bell className="h-4 w-4" /> },

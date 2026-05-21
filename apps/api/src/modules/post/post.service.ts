@@ -186,12 +186,22 @@ export class PostService {
           }));
         }
         if (args.viewerId) {
-          const memberships = await prisma.communityMember.findMany({
-            where: { userId: args.viewerId },
-            select: { communityId: true },
-          });
-          const ids = memberships.map((m) => m.communityId);
-          if (ids.length) baseWhere.OR = [{ communityId: { in: ids } }, { authorId: args.viewerId }];
+          const [memberships, follows] = await Promise.all([
+            prisma.communityMember.findMany({
+              where: { userId: args.viewerId },
+              select: { communityId: true },
+            }),
+            prisma.follow.findMany({
+              where: { followerId: args.viewerId },
+              select: { followingId: true },
+            }),
+          ]);
+          const communityIds = memberships.map((m) => m.communityId);
+          const followedIds = follows.map((f) => f.followingId);
+          const ors: Prisma.PostWhereInput[] = [{ authorId: args.viewerId }];
+          if (communityIds.length) ors.push({ communityId: { in: communityIds } });
+          if (followedIds.length) ors.push({ authorId: { in: followedIds } });
+          baseWhere.OR = ors;
         }
         orderBy = [{ publishedAt: 'desc' }, { id: 'desc' }];
         if (cursor)

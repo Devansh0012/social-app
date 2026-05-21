@@ -28,6 +28,8 @@ interface ViewerSignals {
   engagedAuthors: Map<string, number>;
   /** community ids viewer is a member of */
   memberCommunityIds: Set<string>;
+  /** user ids the viewer explicitly follows */
+  followedUserIds: Set<string>;
   /** post ids viewer has interacted with — avoid re-recommending */
   seenPostIds: Set<string>;
 }
@@ -44,11 +46,12 @@ const ENGAGEMENT_LOOKBACK_DAYS = 30;
 
 /** Weights for the light ranker. Tunable. */
 const WEIGHTS = {
-  freshness: 0.30,
-  engagement: 0.25,
+  freshness: 0.25,
+  engagement: 0.20,
   authorAffinity: 0.20,
   topicAffinity: 0.15,
   communityMatch: 0.10,
+  followBoost: 0.10,
 };
 
 export async function rankedFeed(
@@ -86,9 +89,10 @@ async function loadViewerSignals(
 ): Promise<ViewerSignals> {
   const since = new Date(Date.now() - ENGAGEMENT_LOOKBACK_DAYS * 24 * 3600 * 1000);
 
-  const [user, memberships, likes, comments, bookmarks] = await Promise.all([
+  const [user, memberships, follows, likes, comments, bookmarks] = await Promise.all([
     prisma.user.findUnique({ where: { id: viewerId } }),
     prisma.communityMember.findMany({ where: { userId: viewerId } }),
+    prisma.follow.findMany({ where: { followerId: viewerId }, select: { followingId: true } }),
     prisma.postLike.findMany({
       where: { userId: viewerId, createdAt: { gte: since } },
       include: { post: { select: { authorId: true } } },
@@ -123,6 +127,7 @@ async function loadViewerSignals(
     collegeId: user?.collegeId ?? '',
     engagedAuthors,
     memberCommunityIds: new Set(memberships.map((m) => m.communityId)),
+    followedUserIds: new Set(follows.map((f) => f.followingId)),
     seenPostIds,
   };
 }
@@ -143,17 +148,26 @@ async function fetchCandidates(
   };
 
   // Run all source queries in parallel, then de-duplicate by id.
-  const [community, authorAffinity, trending, topicMatch, collegeMates] = await Promise.all([
-    // 1. In-network: posts from communities the viewer is in
+  const [follows, community, authorAffinity, trending, topicMatch, collegeMates] = await Promise.all([
+    // 1. In-network: posts from users the viewer follows (highest priority)
+    signals.followedUserIds.size
+      ? prisma.post.findMany({
+          where: { ...base, authorId: { in: [...signals.followedUserIds] } },
+          orderBy: { publishedAt: 'desc' },
+          take: 80,
+        })
+      : Promise.resolve([] as Post[]),
+
+    // 2. In-network: posts from communities the viewer is in
     signals.memberCommunityIds.size
       ? prisma.post.findMany({
           where: { ...base, communityId: { in: [...signals.memberCommunityIds] } },
           orderBy: { publishedAt: 'desc' },
-          take: 100,
+          take: 80,
         })
       : Promise.resolve([] as Post[]),
 
-    // 2. In-network: posts by authors the viewer has engaged with
+    // 3. In-network: posts by authors the viewer has engaged with
     signals.engagedAuthors.size
       ? prisma.post.findMany({
           where: { ...base, authorId: { in: [...signals.engagedAuthors.keys()] } },
@@ -162,14 +176,14 @@ async function fetchCandidates(
         })
       : Promise.resolve([] as Post[]),
 
-    // 3. Out-of-network: trending posts (hot score is engagement velocity-ish)
+    // 4. Out-of-network: trending posts (hot score is engagement velocity-ish)
     prisma.post.findMany({
       where: base,
       orderBy: [{ hotScore: 'desc' }, { publishedAt: 'desc' }],
       take: 60,
     }),
 
-    // 4. Out-of-network: posts whose tags overlap with viewer's interests
+    // 5. Out-of-network: posts whose tags overlap with viewer's interests
     signals.interests.size
       ? prisma.post.findMany({
           where: { ...base, tags: { hasSome: [...signals.interests] } },
@@ -178,7 +192,7 @@ async function fetchCandidates(
         })
       : Promise.resolve([] as Post[]),
 
-    // 5. Out-of-network: posts from same college (campus signal)
+    // 6. Out-of-network: posts from same college (campus signal)
     signals.collegeId
       ? prisma.post.findMany({
           where: {
@@ -194,7 +208,7 @@ async function fetchCandidates(
   // De-duplicate by id, preserve first occurrence (favors in-network).
   const seen = new Set<string>();
   const pool: Post[] = [];
-  for (const list of [community, authorAffinity, trending, topicMatch, collegeMates]) {
+  for (const list of [follows, community, authorAffinity, trending, topicMatch, collegeMates]) {
     for (const p of list) {
       if (seen.has(p.id)) continue;
       seen.add(p.id);
@@ -240,12 +254,17 @@ function lightScore(post: Post, signals: ViewerSignals): { score: number; reason
     post.communityId && signals.memberCommunityIds.has(post.communityId) ? 1 : 0;
   if (communityMatch) reasons.push('community');
 
+  // Follow boost — viewer explicitly follows this author
+  const followBoost = signals.followedUserIds.has(post.authorId) ? 1 : 0;
+  if (followBoost) reasons.push('following');
+
   const score =
     WEIGHTS.freshness * freshness +
     WEIGHTS.engagement * engagement +
     WEIGHTS.authorAffinity * authorAffinity +
     WEIGHTS.topicAffinity * topicAffinity +
-    WEIGHTS.communityMatch * communityMatch;
+    WEIGHTS.communityMatch * communityMatch +
+    WEIGHTS.followBoost * followBoost;
 
   return { score, reasons };
 }

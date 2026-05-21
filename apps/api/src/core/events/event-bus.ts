@@ -38,6 +38,14 @@ export interface AppEvents {
   'study-material.viewed': { materialId: string; actorId: string | null };
   'study-room.joined': { roomId: string; actorId: string };
   'search.performed': { actorId: string | null; query: string };
+  'user.followed': { followerId: string; followedId: string };
+  'user.unfollowed': { followerId: string; followedId: string };
+  'dm.sent': {
+    conversationId: string;
+    messageId: string;
+    authorId: string;
+    recipientIds: string[];
+  };
 }
 
 class TypedEventBus {

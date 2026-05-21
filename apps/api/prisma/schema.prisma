@@ -65,6 +65,8 @@ enum NotificationType {
   COMMUNITY_INVITE
   MENTION
   SYSTEM
+  NEW_FOLLOWER
+  NEW_DM
 }
 
 enum CollabProjectType {
@@ -188,6 +190,10 @@ model User {
   analyticsEvents        AnalyticsEvent[]
   reportsCreated         Report[]                 @relation("ReportReporter")
   reportsTargeted        Report[]                 @relation("ReportTargetUser")
+  following              Follow[]                 @relation("UserFollowing")
+  followers              Follow[]                 @relation("UserFollowers")
+  dmParticipations       ConversationParticipant[]
+  dmsSent                DirectMessage[]           @relation("DMAuthor")
 
   @@index([collegeId])
   @@index([username])
@@ -550,4 +556,61 @@ model Report {
 
   @@index([status, createdAt])
   @@index([targetType, targetId])
+}
+
+/// ====================================================================
+/// Social graph — follow / unfollow
+/// ====================================================================
+
+model Follow {
+  followerId  String
+  follower    User     @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId String
+  following   User     @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@id([followerId, followingId])
+  @@index([followingId, createdAt])
+  @@index([followerId, createdAt])
+}
+
+/// ====================================================================
+/// Direct messages — 1:1 conversations in MVP, schema supports group later
+/// ====================================================================
+
+model Conversation {
+  id            String   @id @default(cuid())
+  createdAt     DateTime @default(now())
+  lastMessageAt DateTime @default(now())
+
+  participants ConversationParticipant[]
+  messages     DirectMessage[]
+
+  @@index([lastMessageAt(sort: Desc)])
+}
+
+model ConversationParticipant {
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt       DateTime     @default(now())
+  leftAt         DateTime?
+  lastReadAt     DateTime?
+
+  @@id([conversationId, userId])
+  @@index([userId, leftAt])
+}
+
+model DirectMessage {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  authorId       String
+  author         User         @relation("DMAuthor", fields: [authorId], references: [id])
+  body           String
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([authorId])
 }

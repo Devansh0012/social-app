@@ -13,6 +13,8 @@ import { studyRoomModule } from '../modules/studyRoom/index.js';
 import { notificationModule } from '../modules/notification/index.js';
 import { searchModule } from '../modules/search/index.js';
 import { adminModule } from '../modules/admin/index.js';
+import { followModule } from '../modules/follow/index.js';
+import { dmModule } from '../modules/dm/index.js';
 
 const modules = [
   authModule,
@@ -24,6 +26,8 @@ const modules = [
   notificationModule,
   searchModule,
   adminModule,
+  followModule,
+  dmModule,
 ];
 
 const rootTypeDefs = /* GraphQL */ `

@@ -45,6 +45,9 @@ export const PUBLIC_USER_FRAGMENT = /* GraphQL */ `
     isVerifiedStudent
     reputationScore
     createdAt
+    followerCount
+    followingCount
+    viewerIsFollowing
   }
 `;
 
@@ -444,5 +447,129 @@ export const ADMIN_UPDATE_COLLEGE_MUTATION = /* GraphQL */ `
 export const ADMIN_DELETE_COLLEGE_MUTATION = /* GraphQL */ `
   mutation AdminDeleteCollege($id: ID!) {
     adminDeleteCollege(id: $id)
+  }
+`;
+
+/* ----------------------------------- follow ----------------------------------- */
+
+export const FOLLOW_USER_MUTATION = /* GraphQL */ `
+  mutation FollowUser($username: String!) {
+    followUser(username: $username) { ...PublicUserFields }
+  }
+  ${PUBLIC_USER_FRAGMENT}
+`;
+export const UNFOLLOW_USER_MUTATION = /* GraphQL */ `
+  mutation UnfollowUser($username: String!) {
+    unfollowUser(username: $username) { ...PublicUserFields }
+  }
+  ${PUBLIC_USER_FRAGMENT}
+`;
+
+export const FOLLOWERS_QUERY = /* GraphQL */ `
+  query Followers($username: String!, $after: String) {
+    followers(username: $username, after: $after, first: 25) {
+      nodes { ...PublicUserFields }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+  ${PUBLIC_USER_FRAGMENT}
+`;
+
+export const FOLLOWING_QUERY = /* GraphQL */ `
+  query Following($username: String!, $after: String) {
+    following(username: $username, after: $after, first: 25) {
+      nodes { ...PublicUserFields }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+  ${PUBLIC_USER_FRAGMENT}
+`;
+
+/* ------------------------------------ DMs ------------------------------------- */
+
+export const DM_AUTHOR_FRAGMENT = /* GraphQL */ `
+  fragment DMAuthor on PublicUser {
+    id
+    username
+    fullName
+    avatarUrl
+    isVerifiedStudent
+    college { id name }
+  }
+`;
+
+export const CONVERSATIONS_QUERY = /* GraphQL */ `
+  query Conversations {
+    conversations {
+      id
+      lastMessageAt
+      unreadCount
+      otherParticipants { ...DMAuthor }
+      lastMessage {
+        id
+        body
+        createdAt
+        author { id username fullName }
+      }
+    }
+    unreadDMCount
+  }
+  ${DM_AUTHOR_FRAGMENT}
+`;
+
+export const CONVERSATION_QUERY = /* GraphQL */ `
+  query Conversation($id: ID!) {
+    conversation(id: $id) {
+      id
+      lastMessageAt
+      otherParticipants { ...DMAuthor }
+      unreadCount
+    }
+  }
+  ${DM_AUTHOR_FRAGMENT}
+`;
+
+export const MESSAGES_QUERY = /* GraphQL */ `
+  query Messages($conversationId: ID!, $after: String) {
+    messages(conversationId: $conversationId, after: $after, first: 50) {
+      nodes {
+        id
+        conversationId
+        body
+        createdAt
+        author { ...DMAuthor }
+      }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+  ${DM_AUTHOR_FRAGMENT}
+`;
+
+export const OPEN_CONVERSATION_MUTATION = /* GraphQL */ `
+  mutation OpenConversation($username: String!) {
+    openConversation(username: $username) {
+      id
+      otherParticipants { ...DMAuthor }
+    }
+  }
+  ${DM_AUTHOR_FRAGMENT}
+`;
+
+export const SEND_DM_MUTATION = /* GraphQL */ `
+  mutation SendDM($conversationId: ID!, $body: String!) {
+    sendMessage(conversationId: $conversationId, body: $body) {
+      id
+      conversationId
+      body
+      createdAt
+      author { ...DMAuthor }
+    }
+  }
+  ${DM_AUTHOR_FRAGMENT}
+`;
+
+export const MARK_CONVERSATION_READ_MUTATION = /* GraphQL */ `
+  mutation MarkConversationRead($conversationId: ID!) {
+    markConversationRead(conversationId: $conversationId)
   }
 `;

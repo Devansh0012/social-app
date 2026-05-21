@@ -108,3 +108,26 @@ eventBus.on('collab.responded', async (e) => {
     payload: { applicationId: e.applicationId, decision: e.decision },
   });
 });
+
+eventBus.on('user.followed', async (e) => {
+  await notificationService.dispatch({
+    recipientId: e.followedId,
+    actorId: e.followerId,
+    type: 'NEW_FOLLOWER',
+    payload: {},
+  });
+});
+
+eventBus.on('dm.sent', async (e) => {
+  // Only push a notification when the recipient isn't actively watching the
+  // conversation. The DM WebSocket frame they get when looking at the thread
+  // is enough; piling on a notification too is noisy.
+  for (const rid of e.recipientIds) {
+    await notificationService.dispatch({
+      recipientId: rid,
+      actorId: e.authorId,
+      type: 'NEW_DM',
+      payload: { conversationId: e.conversationId, messageId: e.messageId },
+    });
+  }
+});
