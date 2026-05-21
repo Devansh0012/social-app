@@ -269,6 +269,11 @@ export const UNBOOKMARK_POST_MUTATION = /* GraphQL */ `
     unbookmarkPost(postId: $postId) { id bookmarkCount viewerHasBookmarked }
   }
 `;
+export const SHARE_POST_MUTATION = /* GraphQL */ `
+  mutation SharePost($postId: ID!) {
+    sharePost(postId: $postId) { id shareCount }
+  }
+`;
 
 export const POST_DETAIL_QUERY = /* GraphQL */ `
   query PostDetail($id: ID!) {

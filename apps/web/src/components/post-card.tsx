@@ -15,6 +15,7 @@ import {
   MoreHorizontal,
   Pencil,
   Trash2,
+  Check,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +27,7 @@ import {
   BOOKMARK_POST_MUTATION,
   DELETE_POST_MUTATION,
   LIKE_POST_MUTATION,
+  SHARE_POST_MUTATION,
   UNBOOKMARK_POST_MUTATION,
   UNLIKE_POST_MUTATION,
   UPDATE_POST_MUTATION,
@@ -72,6 +74,7 @@ export function PostCard({ post: initial }: { post: PostNode }) {
   const [post, setPost] = useState(initial);
   const [editing, setEditing] = useState(false);
   const [deleted, setDeleted] = useState(false);
+  const [shared, setShared] = useState(false);
   const qc = useQueryClient();
   const viewer = useAuthStore((s) => s.viewer);
   const isOwner = viewer?.id === post.author.id;
@@ -99,6 +102,48 @@ export function PostCard({ post: initial }: { post: PostNode }) {
       qc.invalidateQueries({ queryKey: ['post', post.id] });
     } catch (err) {
       window.alert((err as Error).message ?? 'Could not delete');
+    }
+  }
+
+  async function onShare() {
+    if (typeof window === 'undefined') return;
+    const url = `${window.location.origin}/p/${post.id}`;
+    const title = post.title ?? `${post.author.fullName} on Braventex`;
+    const text = post.body
+      ? post.body.length > 140
+        ? `${post.body.slice(0, 137)}…`
+        : post.body
+      : 'Shared from Braventex';
+
+    let didShare = false;
+    try {
+      const nav = typeof navigator !== 'undefined' ? navigator : null;
+      if (nav && typeof nav.share === 'function') {
+        await nav.share({ title, text, url });
+        didShare = true;
+      } else if (nav?.clipboard?.writeText) {
+        await nav.clipboard.writeText(url);
+        didShare = true;
+      }
+    } catch (err) {
+      // User cancelled the share sheet — that's not an error worth counting.
+      const name = (err as { name?: string } | null)?.name;
+      if (name === 'AbortError') return;
+      // Otherwise fall through; we still increment the counter if URL was acted on.
+    }
+
+    if (!didShare) return;
+
+    // Optimistic local + cache update; backend records analytics + bumps counter.
+    const patch = { shareCount: post.shareCount + 1 };
+    setPost((p) => ({ ...p, ...patch }));
+    applyToCaches(patch);
+    setShared(true);
+    setTimeout(() => setShared(false), 1500);
+    try {
+      await gql(SHARE_POST_MUTATION, { postId: post.id });
+    } catch {
+      // Non-critical — the user did share. Just leave the count be.
     }
   }
 
@@ -299,9 +344,16 @@ export function PostCard({ post: initial }: { post: PostNode }) {
           />
           Save
         </button>
-        <button className="flex items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-[var(--color-bg-elevated)]">
-          <Share2 className="h-4 w-4" />
-          Share
+        <button
+          onClick={onShare}
+          className={cn(
+            'flex items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-[var(--color-bg-elevated)]',
+            shared && 'text-[var(--color-accent)]',
+          )}
+          aria-label={shared ? 'Link copied' : 'Share post'}
+        >
+          {shared ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
+          {shared ? 'Copied' : 'Share'}
         </button>
       </div>
     </article>
