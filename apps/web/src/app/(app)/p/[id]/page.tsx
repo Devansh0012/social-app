@@ -3,14 +3,19 @@
 import { use, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { ArrowLeft, MessageCircle } from 'lucide-react';
+import { ArrowLeft, MessageCircle, Pencil, Trash2 } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/input';
 import { PostCard, type PostNode } from '@/components/post-card';
 import { gql } from '@/lib/graphql-client';
-import { ADD_COMMENT_MUTATION, POST_DETAIL_QUERY } from '@/lib/queries';
+import {
+  ADD_COMMENT_MUTATION,
+  DELETE_COMMENT_MUTATION,
+  POST_DETAIL_QUERY,
+  UPDATE_COMMENT_MUTATION,
+} from '@/lib/queries';
 import { useAuthStore } from '@/lib/auth-store';
 import { relativeTime } from '@/lib/utils';
 
@@ -114,6 +119,31 @@ function CommentNode({ node, postId, depth }: { node: CommentTreeNode; postId: s
   const viewer = useAuthStore((s) => s.viewer);
   const qc = useQueryClient();
   const [replying, setReplying] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [body, setBody] = useState(node.body);
+  const [busy, setBusy] = useState(false);
+  const isOwner = viewer?.id === node.author.id;
+
+  async function saveEdit() {
+    setBusy(true);
+    try {
+      await gql(UPDATE_COMMENT_MUTATION, { commentId: node.id, body });
+      setEditing(false);
+      qc.invalidateQueries({ queryKey: ['post', postId] });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    if (!window.confirm('Delete this comment?')) return;
+    try {
+      await gql(DELETE_COMMENT_MUTATION, { commentId: node.id });
+      qc.invalidateQueries({ queryKey: ['post', postId] });
+    } catch (err) {
+      window.alert((err as Error).message);
+    }
+  }
 
   return (
     <div className={depth > 0 ? 'pl-4 border-l border-[var(--color-border)]' : ''}>
@@ -122,14 +152,52 @@ function CommentNode({ node, postId, depth }: { node: CommentTreeNode; postId: s
           <Avatar src={node.author.avatarUrl} name={node.author.fullName} size={32} />
         </Link>
         <div className="min-w-0 flex-1">
-          <div className="text-xs text-[var(--color-fg-muted)]">
-            <Link href={`/u/${node.author.username}`} className="font-medium text-[var(--color-fg)] hover:underline">
-              {node.author.fullName}
-            </Link>{' '}
-            · @{node.author.username} · {relativeTime(node.createdAt)}
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-xs text-[var(--color-fg-muted)]">
+              <Link href={`/u/${node.author.username}`} className="font-medium text-[var(--color-fg)] hover:underline">
+                {node.author.fullName}
+              </Link>{' '}
+              · @{node.author.username} · {relativeTime(node.createdAt)}
+            </div>
+            {isOwner && !editing ? (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setEditing(true)}
+                  className="text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
+                  aria-label="Edit comment"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+                <button
+                  onClick={remove}
+                  className="text-[var(--color-fg-muted)] hover:text-[var(--color-danger)]"
+                  aria-label="Delete comment"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+            ) : null}
           </div>
-          <p className="mt-1 whitespace-pre-wrap text-sm">{node.body}</p>
-          {viewer ? (
+          {editing ? (
+            <div className="mt-1">
+              <Textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                className="min-h-16"
+              />
+              <div className="mt-1 flex justify-end gap-2">
+                <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={busy}>
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={saveEdit} disabled={busy || !body.trim()}>
+                  {busy ? 'Saving…' : 'Save'}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-1 whitespace-pre-wrap text-sm">{node.body}</p>
+          )}
+          {viewer && !editing ? (
             <button
               onClick={() => setReplying((v) => !v)}
               className="mt-1 text-xs text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"

@@ -2,20 +2,30 @@
 
 import { use, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Sparkles, MessageSquare, UserPlus, UserMinus } from 'lucide-react';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
+import { Sparkles, MessageSquare, UserPlus, UserMinus, Trash2, Pencil } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/input';
+import { PostCard, type PostNode } from '@/components/post-card';
 import { gql } from '@/lib/graphql-client';
 import {
+  DELETE_COMMENT_MUTATION,
   FOLLOW_USER_MUTATION,
+  MY_BOOKMARKED_POSTS_QUERY,
+  MY_LIKED_POSTS_QUERY,
   OPEN_CONVERSATION_MUTATION,
   UNFOLLOW_USER_MUTATION,
+  UPDATE_COMMENT_MUTATION,
+  USER_COMMENTS_QUERY,
+  USER_POSTS_QUERY,
   USER_PROFILE_QUERY,
 } from '@/lib/queries';
 import { useAuthStore } from '@/lib/auth-store';
+import { cn, relativeTime } from '@/lib/utils';
 
 interface PublicUser {
   id: string;
@@ -40,11 +50,14 @@ interface ProfileResp {
   user: PublicUser | null;
 }
 
+type TabKey = 'posts' | 'comments' | 'likes' | 'bookmarks';
+
 export default function ProfilePage({ params }: { params: Promise<{ username: string }> }) {
   const { username } = use(params);
   const viewer = useAuthStore((s) => s.viewer);
   const router = useRouter();
   const qc = useQueryClient();
+  const [tab, setTab] = useState<TabKey>('posts');
 
   const q = useQuery({
     queryKey: ['user', username],
@@ -60,12 +73,17 @@ export default function ProfilePage({ params }: { params: Promise<{ username: st
   if (!u) return <div className="py-10 text-center">User not found.</div>;
 
   const isSelf = viewer?.id === u.id;
+  const tabs: Array<{ key: TabKey; label: string; visible: boolean }> = [
+    { key: 'posts', label: 'Posts', visible: true },
+    { key: 'comments', label: 'Comments', visible: true },
+    { key: 'likes', label: 'Likes', visible: isSelf },
+    { key: 'bookmarks', label: 'Bookmarks', visible: isSelf },
+  ];
 
   async function toggleFollow() {
     if (!u) return;
     setFollowBusy(true);
     const wasFollowing = u.viewerIsFollowing;
-    // Optimistic update
     qc.setQueryData<ProfileResp>(['user', username], (old) =>
       old?.user
         ? {
@@ -82,7 +100,6 @@ export default function ProfilePage({ params }: { params: Promise<{ username: st
         username: u.username,
       });
     } catch {
-      // revert
       qc.setQueryData<ProfileResp>(['user', username], (old) =>
         old?.user
           ? {
@@ -191,7 +208,241 @@ export default function ProfilePage({ params }: { params: Promise<{ username: st
           ) : null}
         </div>
       </Card>
+
+      <nav className="flex gap-1 border-b border-[var(--color-border)]">
+        {tabs
+          .filter((t) => t.visible)
+          .map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={cn(
+                '-mb-px border-b-2 px-3 py-2 text-sm font-medium transition',
+                tab === t.key
+                  ? 'border-[var(--color-brand)] text-[var(--color-fg)]'
+                  : 'border-transparent text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]',
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+      </nav>
+
+      {tab === 'posts' ? <PostsList username={u.username} /> : null}
+      {tab === 'comments' ? <CommentsList username={u.username} isSelf={isSelf} /> : null}
+      {tab === 'likes' && isSelf ? <MyPostList queryKey="myLikedPosts" /> : null}
+      {tab === 'bookmarks' && isSelf ? <MyPostList queryKey="myBookmarkedPosts" /> : null}
     </div>
+  );
+}
+
+interface PostConn {
+  nodes: PostNode[];
+  pageInfo: { hasNextPage: boolean; endCursor: string | null };
+}
+
+function PostsList({ username }: { username: string }) {
+  const query = useInfiniteQuery({
+    queryKey: ['userPosts', username],
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) =>
+      gql<{ userPosts: PostConn }>(USER_POSTS_QUERY, {
+        username,
+        after: pageParam ?? null,
+      }),
+    getNextPageParam: (last) =>
+      last.userPosts.pageInfo.hasNextPage ? last.userPosts.pageInfo.endCursor : null,
+  });
+
+  const posts = query.data?.pages.flatMap((p) => p.userPosts.nodes) ?? [];
+  return (
+    <FeedList
+      posts={posts}
+      isLoading={query.isLoading}
+      hasNextPage={query.hasNextPage}
+      isFetchingNextPage={query.isFetchingNextPage}
+      fetchNextPage={query.fetchNextPage}
+      emptyText="No posts yet."
+    />
+  );
+}
+
+function MyPostList({ queryKey }: { queryKey: 'myLikedPosts' | 'myBookmarkedPosts' }) {
+  const document =
+    queryKey === 'myLikedPosts' ? MY_LIKED_POSTS_QUERY : MY_BOOKMARKED_POSTS_QUERY;
+  const query = useInfiniteQuery({
+    queryKey: [queryKey],
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) =>
+      gql<Record<typeof queryKey, PostConn>>(document, {
+        after: pageParam ?? null,
+      }),
+    getNextPageParam: (last) =>
+      last[queryKey].pageInfo.hasNextPage ? last[queryKey].pageInfo.endCursor : null,
+  });
+  const posts = query.data?.pages.flatMap((p) => p[queryKey].nodes) ?? [];
+  return (
+    <FeedList
+      posts={posts}
+      isLoading={query.isLoading}
+      hasNextPage={query.hasNextPage}
+      isFetchingNextPage={query.isFetchingNextPage}
+      fetchNextPage={query.fetchNextPage}
+      emptyText={queryKey === 'myLikedPosts' ? 'No liked posts yet.' : 'No bookmarks yet.'}
+    />
+  );
+}
+
+function FeedList({
+  posts,
+  isLoading,
+  hasNextPage,
+  isFetchingNextPage,
+  fetchNextPage,
+  emptyText,
+}: {
+  posts: PostNode[];
+  isLoading: boolean;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  fetchNextPage: () => void;
+  emptyText: string;
+}) {
+  if (isLoading) {
+    return <div className="py-10 text-center text-[var(--color-fg-muted)]">Loading…</div>;
+  }
+  if (!posts.length) {
+    return <Card className="text-center text-[var(--color-fg-muted)]">{emptyText}</Card>;
+  }
+  return (
+    <div className="flex flex-col gap-4">
+      {posts.map((p) => (
+        <PostCard key={p.id} post={p} />
+      ))}
+      {hasNextPage ? (
+        <div className="grid place-items-center">
+          <Button variant="outline" onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
+            {isFetchingNextPage ? 'Loading…' : 'Load more'}
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+interface CommentRow {
+  id: string;
+  postId: string;
+  body: string;
+  createdAt: string;
+  author: { id: string; username: string; fullName: string; avatarUrl: string | null };
+}
+
+function CommentsList({ username, isSelf }: { username: string; isSelf: boolean }) {
+  const qc = useQueryClient();
+  const query = useQuery({
+    queryKey: ['userComments', username],
+    queryFn: () => gql<{ userComments: CommentRow[] }>(USER_COMMENTS_QUERY, { username }),
+  });
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  async function deleteComment(id: string) {
+    if (!window.confirm('Delete this comment?')) return;
+    try {
+      await gql(DELETE_COMMENT_MUTATION, { commentId: id });
+      qc.invalidateQueries({ queryKey: ['userComments', username] });
+    } catch (err) {
+      window.alert((err as Error).message);
+    }
+  }
+
+  if (query.isLoading) {
+    return <div className="py-10 text-center text-[var(--color-fg-muted)]">Loading…</div>;
+  }
+  const rows = query.data?.userComments ?? [];
+  if (!rows.length) {
+    return <Card className="text-center text-[var(--color-fg-muted)]">No comments yet.</Card>;
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      {rows.map((c) =>
+        editingId === c.id ? (
+          <CommentEditor
+            key={c.id}
+            comment={c}
+            onCancel={() => setEditingId(null)}
+            onSaved={() => {
+              setEditingId(null);
+              qc.invalidateQueries({ queryKey: ['userComments', username] });
+            }}
+          />
+        ) : (
+          <Card key={c.id} className="flex items-start gap-3 p-3">
+            <div className="min-w-0 flex-1">
+              <Link
+                href={`/p/${c.postId}`}
+                className="text-xs text-[var(--color-fg-muted)] hover:text-[var(--color-fg)]"
+              >
+                on a post · {relativeTime(c.createdAt)}
+              </Link>
+              <p className="mt-1 whitespace-pre-wrap text-sm">{c.body}</p>
+            </div>
+            {isSelf ? (
+              <div className="flex items-center gap-1">
+                <Button size="sm" variant="ghost" onClick={() => setEditingId(c.id)}>
+                  <Pencil className="h-3 w-3" />
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => deleteComment(c.id)}>
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+            ) : null}
+          </Card>
+        ),
+      )}
+    </div>
+  );
+}
+
+function CommentEditor({
+  comment,
+  onSaved,
+  onCancel,
+}: {
+  comment: CommentRow;
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const [body, setBody] = useState(comment.body);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit() {
+    setBusy(true);
+    setErr(null);
+    try {
+      await gql(UPDATE_COMMENT_MUTATION, { commentId: comment.id, body });
+      onSaved();
+    } catch (e) {
+      setErr((e as Error).message ?? 'Could not save');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="p-3">
+      <Textarea value={body} onChange={(e) => setBody(e.target.value)} className="min-h-20" />
+      {err ? <p className="mt-1 text-xs text-[var(--color-danger)]">{err}</p> : null}
+      <div className="mt-2 flex justify-end gap-2">
+        <Button variant="ghost" size="sm" onClick={onCancel} disabled={busy}>
+          Cancel
+        </Button>
+        <Button size="sm" onClick={submit} disabled={busy || !body.trim()}>
+          {busy ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+    </Card>
   );
 }
 

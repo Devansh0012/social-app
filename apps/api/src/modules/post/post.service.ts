@@ -47,6 +47,17 @@ const CommentSchema = z.object({
   body: z.string().trim().min(1).max(2000),
 });
 
+const UpdatePostSchema = z.object({
+  title: z.string().trim().max(160).nullable().optional(),
+  body: z.string().max(20000).nullable().optional(),
+  linkUrl: z.string().url().nullable().optional(),
+  tags: z.array(z.string().max(30)).max(8).optional(),
+});
+
+const UpdateCommentSchema = z.object({
+  body: z.string().trim().min(1).max(2000),
+});
+
 const CollabApplySchema = z.object({
   postId: z.string().cuid(),
   message: z.string().trim().min(10).max(1000),
@@ -437,6 +448,194 @@ export class PostService {
       decision,
     });
     return updated;
+  }
+
+  /* ------------------------------------------------ edit / delete */
+  async update(viewerId: string, postId: string, rawInput: unknown) {
+    const parsed = UpdatePostSchema.safeParse(rawInput);
+    if (!parsed.success) throw Validation('Invalid input', parsed.error.flatten());
+
+    const post = await prisma.post.findUnique({ where: { id: postId } });
+    if (!post || post.deletedAt || post.removedByAdmin) throw NotFound('Post not found');
+    if (post.authorId !== viewerId) throw Forbidden('You can only edit your own posts.');
+
+    return prisma.post.update({
+      where: { id: postId },
+      data: {
+        title: parsed.data.title === null ? null : parsed.data.title,
+        body: parsed.data.body === null ? null : parsed.data.body,
+        linkUrl: parsed.data.linkUrl === null ? null : parsed.data.linkUrl,
+        tags: parsed.data.tags,
+      },
+    });
+  }
+
+  async delete(viewerId: string, postId: string) {
+    const post = await prisma.post.findUnique({ where: { id: postId } });
+    if (!post || post.deletedAt) throw NotFound('Post not found');
+    if (post.authorId !== viewerId) throw Forbidden('You can only delete your own posts.');
+
+    await prisma.$transaction(async (tx) => {
+      await tx.post.update({
+        where: { id: postId },
+        data: { deletedAt: new Date() },
+      });
+      if (post.communityId) {
+        await tx.community.update({
+          where: { id: post.communityId },
+          data: { postCount: { decrement: 1 } },
+        });
+      }
+    });
+    return true;
+  }
+
+  async updateComment(viewerId: string, commentId: string, rawInput: unknown) {
+    const parsed = UpdateCommentSchema.safeParse(rawInput);
+    if (!parsed.success) throw Validation('Invalid input', parsed.error.flatten());
+
+    const comment = await prisma.comment.findUnique({ where: { id: commentId } });
+    if (!comment || comment.deletedAt) throw NotFound('Comment not found');
+    if (comment.authorId !== viewerId) throw Forbidden('You can only edit your own comments.');
+
+    return prisma.comment.update({
+      where: { id: commentId },
+      data: { body: parsed.data.body },
+    });
+  }
+
+  async deleteComment(viewerId: string, commentId: string) {
+    const comment = await prisma.comment.findUnique({ where: { id: commentId } });
+    if (!comment || comment.deletedAt) throw NotFound('Comment not found');
+    if (comment.authorId !== viewerId) throw Forbidden('You can only delete your own comments.');
+
+    await prisma.$transaction([
+      prisma.comment.update({ where: { id: commentId }, data: { deletedAt: new Date() } }),
+      prisma.post.update({
+        where: { id: comment.postId },
+        data: { commentCount: { decrement: 1 } },
+      }),
+    ]);
+    return true;
+  }
+
+  /* -------------------------------------- user-content listings -- */
+  async listByAuthor(authorId: string, args: { first?: number; after?: string | null }) {
+    return this.paginatePosts(
+      { authorId, deletedAt: null, removedByAdmin: false },
+      args,
+    );
+  }
+
+  async listCommentsByAuthor(authorId: string, args: { first?: number; after?: string | null }) {
+    const pag = PaginationInput.parse({ first: args.first ?? 25, after: args.after ?? null });
+    const cursor = decodeCursor(pag.after);
+
+    const rows = await prisma.comment.findMany({
+      where: {
+        authorId,
+        deletedAt: null,
+        ...(cursor
+          ? {
+              OR: [
+                { createdAt: { lt: new Date(cursor.at) } },
+                { createdAt: new Date(cursor.at), id: { lt: cursor.id } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: pag.first + 1,
+    });
+    return buildConnection(rows, pag.first, (c) => ({
+      at: c.createdAt.toISOString(),
+      id: c.id,
+    }));
+  }
+
+  async listLikedByViewer(viewerId: string, args: { first?: number; after?: string | null }) {
+    const pag = PaginationInput.parse({ first: args.first ?? 25, after: args.after ?? null });
+    const cursor = decodeCursor(pag.after);
+
+    const rows = await prisma.postLike.findMany({
+      where: {
+        userId: viewerId,
+        ...(cursor
+          ? {
+              OR: [
+                { createdAt: { lt: new Date(cursor.at) } },
+                { createdAt: new Date(cursor.at), postId: { lt: cursor.id } },
+              ],
+            }
+          : {}),
+      },
+      include: { post: true },
+      orderBy: [{ createdAt: 'desc' }, { postId: 'desc' }],
+      take: pag.first + 1,
+    });
+    const filtered = rows.filter((r) => r.post && !r.post.deletedAt && !r.post.removedByAdmin);
+    const conn = buildConnection(filtered, pag.first, (r) => ({
+      at: r.createdAt.toISOString(),
+      id: r.postId,
+    }));
+    return { ...conn, nodes: conn.nodes.map((r) => r.post) };
+  }
+
+  async listBookmarkedByViewer(viewerId: string, args: { first?: number; after?: string | null }) {
+    const pag = PaginationInput.parse({ first: args.first ?? 25, after: args.after ?? null });
+    const cursor = decodeCursor(pag.after);
+
+    const rows = await prisma.bookmark.findMany({
+      where: {
+        userId: viewerId,
+        ...(cursor
+          ? {
+              OR: [
+                { createdAt: { lt: new Date(cursor.at) } },
+                { createdAt: new Date(cursor.at), postId: { lt: cursor.id } },
+              ],
+            }
+          : {}),
+      },
+      include: { post: true },
+      orderBy: [{ createdAt: 'desc' }, { postId: 'desc' }],
+      take: pag.first + 1,
+    });
+    const filtered = rows.filter((r) => r.post && !r.post.deletedAt && !r.post.removedByAdmin);
+    const conn = buildConnection(filtered, pag.first, (r) => ({
+      at: r.createdAt.toISOString(),
+      id: r.postId,
+    }));
+    return { ...conn, nodes: conn.nodes.map((r) => r.post) };
+  }
+
+  private async paginatePosts(
+    where: Prisma.PostWhereInput,
+    args: { first?: number; after?: string | null },
+  ): Promise<Connection<{ id: string; publishedAt: Date }>> {
+    const pag = PaginationInput.parse({ first: args.first ?? 25, after: args.after ?? null });
+    const cursor = decodeCursor(pag.after);
+    const rows = await prisma.post.findMany({
+      where: cursor
+        ? {
+            AND: [
+              where,
+              {
+                OR: [
+                  { publishedAt: { lt: new Date(cursor.at) } },
+                  { publishedAt: new Date(cursor.at), id: { lt: cursor.id } },
+                ],
+              },
+            ],
+          }
+        : where,
+      orderBy: [{ publishedAt: 'desc' }, { id: 'desc' }],
+      take: pag.first + 1,
+    });
+    return buildConnection(rows, pag.first, (p) => ({
+      at: p.publishedAt.toISOString(),
+      id: p.id,
+    }));
   }
 }
 

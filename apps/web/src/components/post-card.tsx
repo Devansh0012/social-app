@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import {
@@ -12,17 +12,25 @@ import {
   Sparkles,
   ExternalLink,
   Users as UsersIcon,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/input';
 import { cn, pluralize, relativeTime } from '@/lib/utils';
 import { gql } from '@/lib/graphql-client';
 import {
   BOOKMARK_POST_MUTATION,
+  DELETE_POST_MUTATION,
   LIKE_POST_MUTATION,
   UNBOOKMARK_POST_MUTATION,
   UNLIKE_POST_MUTATION,
+  UPDATE_POST_MUTATION,
 } from '@/lib/queries';
+import { useAuthStore } from '@/lib/auth-store';
 
 export interface PostNode {
   id: string;
@@ -62,12 +70,43 @@ export interface PostNode {
 
 export function PostCard({ post: initial }: { post: PostNode }) {
   const [post, setPost] = useState(initial);
+  const [editing, setEditing] = useState(false);
+  const [deleted, setDeleted] = useState(false);
   const qc = useQueryClient();
+  const viewer = useAuthStore((s) => s.viewer);
+  const isOwner = viewer?.id === post.author.id;
 
   // Resync when the parent passes a refreshed version (e.g. feed re-fetch).
   useEffect(() => {
     setPost(initial);
-  }, [initial.id, initial.likeCount, initial.bookmarkCount, initial.viewerHasLiked, initial.viewerHasBookmarked, initial.commentCount]);
+  }, [
+    initial.id,
+    initial.likeCount,
+    initial.bookmarkCount,
+    initial.viewerHasLiked,
+    initial.viewerHasBookmarked,
+    initial.commentCount,
+    initial.body,
+    initial.title,
+  ]);
+
+  async function onDelete() {
+    if (!window.confirm('Delete this post? This cannot be undone.')) return;
+    try {
+      await gql(DELETE_POST_MUTATION, { postId: post.id });
+      setDeleted(true);
+      qc.invalidateQueries({ queryKey: ['feed'] });
+      qc.invalidateQueries({ queryKey: ['post', post.id] });
+    } catch (err) {
+      window.alert((err as Error).message ?? 'Could not delete');
+    }
+  }
+
+  if (deleted) {
+    return (
+      <div className="bx-card p-4 text-sm text-[var(--color-fg-muted)]">Post deleted.</div>
+    );
+  }
 
   function applyToCaches(patch: Partial<PostNode>) {
     // Patch every cached query that holds this post so navigating away and
@@ -152,17 +191,39 @@ export function PostCard({ post: initial }: { post: PostNode }) {
           )}
         </div>
         {post.type === 'COLLAB' ? <Badge tone="brand">Collab</Badge> : null}
+        {isOwner ? (
+          <OwnerMenu
+            onEdit={() => setEditing(true)}
+            onDelete={onDelete}
+            disabled={editing}
+          />
+        ) : null}
       </div>
 
       <div className="px-5 py-4">
-        {post.title ? <h3 className="mb-2 text-lg font-semibold">{post.title}</h3> : null}
-        {post.collab ? <CollabSummary collab={post.collab} /> : null}
-        {post.body ? (
-          <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-[var(--color-fg)]/95">
-            {post.body}
-          </p>
-        ) : null}
-        {post.type === 'LINK' && post.linkUrl ? (
+        {editing ? (
+          <EditForm
+            post={post}
+            onCancel={() => setEditing(false)}
+            onSaved={(updated) => {
+              setPost((p) => ({ ...p, ...updated }));
+              setEditing(false);
+              qc.invalidateQueries({ queryKey: ['feed'] });
+              qc.invalidateQueries({ queryKey: ['post', post.id] });
+            }}
+          />
+        ) : (
+          <>
+            {post.title ? <h3 className="mb-2 text-lg font-semibold">{post.title}</h3> : null}
+            {post.collab ? <CollabSummary collab={post.collab} /> : null}
+            {post.body ? (
+              <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-[var(--color-fg)]/95">
+                {post.body}
+              </p>
+            ) : null}
+          </>
+        )}
+        {!editing && post.type === 'LINK' && post.linkUrl ? (
           <a
             href={post.linkUrl}
             target="_blank"
@@ -173,7 +234,7 @@ export function PostCard({ post: initial }: { post: PostNode }) {
             <span className="truncate">{post.linkUrl}</span>
           </a>
         ) : null}
-        {post.type === 'IMAGE' && post.imageUrls.length ? (
+        {!editing && post.type === 'IMAGE' && post.imageUrls.length ? (
           <div
             className={cn(
               'mt-3 grid gap-2 overflow-hidden rounded-lg',
@@ -191,7 +252,7 @@ export function PostCard({ post: initial }: { post: PostNode }) {
             ))}
           </div>
         ) : null}
-        {post.tags.length ? (
+        {!editing && post.tags.length ? (
           <div className="mt-3 flex flex-wrap gap-1.5">
             {post.tags.map((t) => (
               <span
@@ -279,6 +340,154 @@ function patchPostInCache(node: unknown, postId: string, patch: Partial<PostNode
     return changed ? next : node;
   }
   return node;
+}
+
+function OwnerMenu({
+  onEdit,
+  onDelete,
+  disabled,
+}: {
+  onEdit: () => void;
+  onDelete: () => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        disabled={disabled}
+        aria-label="Post actions"
+        className="grid h-8 w-8 place-items-center rounded-md text-[var(--color-fg-muted)] hover:bg-[var(--color-bg-elevated)] hover:text-[var(--color-fg)]"
+      >
+        <MoreHorizontal className="h-4 w-4" />
+      </button>
+      {open ? (
+        <div className="absolute right-0 z-10 mt-1 w-32 overflow-hidden rounded-md border border-[var(--color-border)] bg-[var(--color-bg-card)] shadow-lg">
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onEdit();
+            }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-[var(--color-bg-elevated)]"
+          >
+            <Pencil className="h-3 w-3" />
+            Edit
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onDelete();
+            }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[var(--color-danger)] hover:bg-[var(--color-bg-elevated)]"
+          >
+            <Trash2 className="h-3 w-3" />
+            Delete
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function EditForm({
+  post,
+  onSaved,
+  onCancel,
+}: {
+  post: PostNode;
+  onSaved: (patch: Partial<PostNode>) => void;
+  onCancel: () => void;
+}) {
+  const [title, setTitle] = useState(post.title ?? '');
+  const [body, setBody] = useState(post.body ?? '');
+  const [linkUrl, setLinkUrl] = useState(post.linkUrl ?? '');
+  const [tags, setTags] = useState(post.tags.join(', '));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit() {
+    setBusy(true);
+    setErr(null);
+    try {
+      const data = await gql<{ updatePost: PostNode }>(UPDATE_POST_MUTATION, {
+        postId: post.id,
+        input: {
+          title: title || null,
+          body: body || null,
+          linkUrl: post.type === 'LINK' ? (linkUrl || null) : undefined,
+          tags: tags
+            ? tags
+                .split(',')
+                .map((s) => s.trim().toLowerCase())
+                .filter(Boolean)
+            : [],
+        },
+      });
+      onSaved(data.updatePost);
+    } catch (e) {
+      setErr((e as Error).message ?? 'Could not save');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      {(post.type === 'TEXT' || post.type === 'MARKDOWN' || post.type === 'LINK') &&
+      (post.title || post.type === 'LINK') ? (
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Title (optional)"
+          className="h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-3 text-sm"
+        />
+      ) : null}
+      <Textarea
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        placeholder="Body"
+        className="min-h-24"
+      />
+      {post.type === 'LINK' ? (
+        <input
+          type="url"
+          value={linkUrl}
+          onChange={(e) => setLinkUrl(e.target.value)}
+          placeholder="https://…"
+          className="h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-3 text-sm"
+        />
+      ) : null}
+      <input
+        value={tags}
+        onChange={(e) => setTags(e.target.value)}
+        placeholder="Tags (comma-separated)"
+        className="h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-3 text-sm"
+      />
+      {err ? <p className="text-xs text-[var(--color-danger)]">{err}</p> : null}
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" size="sm" onClick={onCancel} disabled={busy}>
+          Cancel
+        </Button>
+        <Button size="sm" onClick={submit} disabled={busy}>
+          {busy ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 function CollabSummary({ collab }: { collab: NonNullable<PostNode['collab']> }) {

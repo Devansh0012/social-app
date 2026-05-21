@@ -128,22 +128,37 @@ export const postTypeDefs = /* GraphQL */ `
     message: String!
   }
 
+  input UpdatePostInput {
+    title: String
+    body: String
+    linkUrl: String
+    tags: [String!]
+  }
+
   extend type Query {
     post(id: ID!): Post
     feed(kind: FeedKind!, communityId: ID, first: Int, after: String): PostConnection!
     postComments(postId: ID!): [Comment!]!
     myCollabApplications: [CollabApplication!]!
     collabApplicationsForPost(postId: ID!): [CollabApplication!]!
+    userPosts(username: String!, first: Int, after: String): PostConnection!
+    userComments(username: String!, first: Int, after: String): [Comment!]!
+    myLikedPosts(first: Int, after: String): PostConnection!
+    myBookmarkedPosts(first: Int, after: String): PostConnection!
   }
 
   extend type Mutation {
     createPost(input: CreatePostInput!): Post!
+    updatePost(postId: ID!, input: UpdatePostInput!): Post!
+    deletePost(postId: ID!): Boolean!
     likePost(postId: ID!): Post!
     unlikePost(postId: ID!): Post!
     bookmarkPost(postId: ID!): Post!
     unbookmarkPost(postId: ID!): Post!
     sharePost(postId: ID!): Post!
     addComment(input: CreateCommentInput!): Comment!
+    updateComment(commentId: ID!, body: String!): Comment!
+    deleteComment(commentId: ID!): Boolean!
     applyToCollab(input: ApplyCollabInput!): CollabApplication!
     respondToCollabApplication(
       applicationId: ID!

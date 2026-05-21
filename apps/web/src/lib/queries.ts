@@ -573,3 +573,79 @@ export const MARK_CONVERSATION_READ_MUTATION = /* GraphQL */ `
     markConversationRead(conversationId: $conversationId)
   }
 `;
+
+/* ------------------------------- post edit/delete + user content ------------------------------ */
+
+export const UPDATE_POST_MUTATION = /* GraphQL */ `
+  mutation UpdatePost($postId: ID!, $input: UpdatePostInput!) {
+    updatePost(postId: $postId, input: $input) { ...PostFields }
+  }
+  ${POST_FRAGMENT}
+`;
+
+export const DELETE_POST_MUTATION = /* GraphQL */ `
+  mutation DeletePost($postId: ID!) {
+    deletePost(postId: $postId)
+  }
+`;
+
+export const UPDATE_COMMENT_MUTATION = /* GraphQL */ `
+  mutation UpdateComment($commentId: ID!, $body: String!) {
+    updateComment(commentId: $commentId, body: $body) {
+      id
+      body
+      createdAt
+      author { ...PublicUserFields }
+    }
+  }
+  ${PUBLIC_USER_FRAGMENT}
+`;
+
+export const DELETE_COMMENT_MUTATION = /* GraphQL */ `
+  mutation DeleteComment($commentId: ID!) {
+    deleteComment(commentId: $commentId)
+  }
+`;
+
+export const USER_POSTS_QUERY = /* GraphQL */ `
+  query UserPosts($username: String!, $after: String) {
+    userPosts(username: $username, after: $after, first: 20) {
+      nodes { ...PostFields }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+  ${POST_FRAGMENT}
+`;
+
+export const USER_COMMENTS_QUERY = /* GraphQL */ `
+  query UserComments($username: String!, $after: String) {
+    userComments(username: $username, after: $after, first: 20) {
+      id
+      postId
+      body
+      createdAt
+      author { ...PublicUserFields }
+    }
+  }
+  ${PUBLIC_USER_FRAGMENT}
+`;
+
+export const MY_LIKED_POSTS_QUERY = /* GraphQL */ `
+  query MyLikedPosts($after: String) {
+    myLikedPosts(after: $after, first: 20) {
+      nodes { ...PostFields }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+  ${POST_FRAGMENT}
+`;
+
+export const MY_BOOKMARKED_POSTS_QUERY = /* GraphQL */ `
+  query MyBookmarkedPosts($after: String) {
+    myBookmarkedPosts(after: $after, first: 20) {
+      nodes { ...PostFields }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+  ${POST_FRAGMENT}
+`;

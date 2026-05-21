@@ -1,6 +1,7 @@
 import type { Post } from '@prisma/client';
 import type { GqlContext } from '../../graphql/context.js';
 import { postService, type FeedKind } from './post.service.js';
+import { NotFound } from '../../core/errors.js';
 
 interface IdArgs {
   id: string;
@@ -27,6 +28,32 @@ interface RespondArgs {
   applicationId: string;
   decision: 'ACCEPTED' | 'REJECTED' | 'PENDING' | 'WITHDRAWN';
 }
+interface UpdatePostArgs {
+  postId: string;
+  input: Parameters<(typeof postService)['update']>[2];
+}
+interface UpdateCommentArgs {
+  commentId: string;
+  body: string;
+}
+interface UsernamePagArgs {
+  username: string;
+  first?: number | null;
+  after?: string | null;
+}
+interface MyPagArgs {
+  first?: number | null;
+  after?: string | null;
+}
+
+async function userIdByUsername(ctx: GqlContext, username: string): Promise<string> {
+  const u = await ctx.prisma.user.findUnique({
+    where: { username: username.toLowerCase() },
+    select: { id: true },
+  });
+  if (!u) throw NotFound('User not found');
+  return u.id;
+}
 
 export const postResolvers = {
   Query: {
@@ -52,6 +79,35 @@ export const postResolvers = {
     async collabApplicationsForPost(_p: unknown, args: PostIdArgs, ctx: GqlContext) {
       const viewer = ctx.requireViewer();
       return postService.listApplicationsForPost(viewer.id, args.postId);
+    },
+    async userPosts(_p: unknown, args: UsernamePagArgs, ctx: GqlContext) {
+      const userId = await userIdByUsername(ctx, args.username);
+      return postService.listByAuthor(userId, {
+        first: args.first ?? undefined,
+        after: args.after,
+      });
+    },
+    async userComments(_p: unknown, args: UsernamePagArgs, ctx: GqlContext) {
+      const userId = await userIdByUsername(ctx, args.username);
+      const conn = await postService.listCommentsByAuthor(userId, {
+        first: args.first ?? undefined,
+        after: args.after,
+      });
+      return conn.nodes;
+    },
+    async myLikedPosts(_p: unknown, args: MyPagArgs, ctx: GqlContext) {
+      const viewer = ctx.requireViewer();
+      return postService.listLikedByViewer(viewer.id, {
+        first: args.first ?? undefined,
+        after: args.after,
+      });
+    },
+    async myBookmarkedPosts(_p: unknown, args: MyPagArgs, ctx: GqlContext) {
+      const viewer = ctx.requireViewer();
+      return postService.listBookmarkedByViewer(viewer.id, {
+        first: args.first ?? undefined,
+        after: args.after,
+      });
     },
   },
   Mutation: {
@@ -93,6 +149,22 @@ export const postResolvers = {
         throw new Error('Decision must be ACCEPTED or REJECTED');
       }
       return postService.respondToApplication(viewer.id, args.applicationId, args.decision);
+    },
+    async updatePost(_p: unknown, args: UpdatePostArgs, ctx: GqlContext) {
+      const viewer = ctx.requireViewer();
+      return postService.update(viewer.id, args.postId, args.input);
+    },
+    async deletePost(_p: unknown, args: PostIdArgs, ctx: GqlContext) {
+      const viewer = ctx.requireViewer();
+      return postService.delete(viewer.id, args.postId);
+    },
+    async updateComment(_p: unknown, args: UpdateCommentArgs, ctx: GqlContext) {
+      const viewer = ctx.requireViewer();
+      return postService.updateComment(viewer.id, args.commentId, { body: args.body });
+    },
+    async deleteComment(_p: unknown, args: { commentId: string }, ctx: GqlContext) {
+      const viewer = ctx.requireViewer();
+      return postService.deleteComment(viewer.id, args.commentId);
     },
   },
   Post: {
