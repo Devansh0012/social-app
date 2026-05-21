@@ -109,27 +109,24 @@ export function PostCard({ post: initial }: { post: PostNode }) {
     if (typeof window === 'undefined') return;
     const url = `${window.location.origin}/p/${post.id}`;
     const title = post.title ?? `${post.author.fullName} on Braventex`;
-    const text = post.body
-      ? post.body.length > 140
-        ? `${post.body.slice(0, 137)}…`
-        : post.body
-      : 'Shared from Braventex';
 
+    // Deliberately *don't* pass `text` — many share targets concatenate
+    // text + url into a single line, which results in pastes that glue
+    // body content onto the URL and produce broken /p/<id><body> links.
     let didShare = false;
     try {
       const nav = typeof navigator !== 'undefined' ? navigator : null;
       if (nav && typeof nav.share === 'function') {
-        await nav.share({ title, text, url });
+        await nav.share({ title, url });
         didShare = true;
       } else if (nav?.clipboard?.writeText) {
         await nav.clipboard.writeText(url);
         didShare = true;
       }
     } catch (err) {
-      // User cancelled the share sheet — that's not an error worth counting.
       const name = (err as { name?: string } | null)?.name;
       if (name === 'AbortError') return;
-      // Otherwise fall through; we still increment the counter if URL was acted on.
+      // Otherwise fall through.
     }
 
     if (!didShare) return;

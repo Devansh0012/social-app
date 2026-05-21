@@ -58,7 +58,11 @@ function buildTree(rows: CommentRow[]): CommentTreeNode[] {
 }
 
 export default function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+  const raw = use(params).id;
+  // Defensive: some share targets glue extra text onto the URL after the cuid.
+  // Strip everything from the first non-alphanumeric character so we always
+  // query a clean id.
+  const id = raw.replace(/[^a-zA-Z0-9].*$/, '');
   const viewer = useAuthStore((s) => s.viewer);
   const qc = useQueryClient();
 
