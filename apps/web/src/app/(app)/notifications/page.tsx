@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Heart, MessageCircle, UserPlus, Sparkles } from 'lucide-react';
@@ -12,8 +11,6 @@ import {
   MARK_NOTIFICATION_READ_MUTATION,
   NOTIFICATIONS_QUERY,
 } from '@/lib/queries';
-import { useAuthStore } from '@/lib/auth-store';
-import { env } from '@/lib/env';
 import { cn, relativeTime } from '@/lib/utils';
 
 interface NotificationsResp {
@@ -34,21 +31,11 @@ interface NotificationsResp {
 }
 
 export default function NotificationsPage() {
-  const accessToken = useAuthStore((s) => s.accessToken);
   const qc = useQueryClient();
   const query = useQuery({
     queryKey: ['notifications'],
     queryFn: () => gql<NotificationsResp>(NOTIFICATIONS_QUERY, { unreadOnly: false }),
   });
-
-  useEffect(() => {
-    if (!accessToken) return;
-    const ws = new WebSocket(`${env.wsUrl}/notifications?token=${accessToken}`);
-    ws.onmessage = () => {
-      qc.invalidateQueries({ queryKey: ['notifications'] });
-    };
-    return () => ws.close();
-  }, [accessToken, qc]);
 
   async function markRead(id: string) {
     await gql(MARK_NOTIFICATION_READ_MUTATION, { id });

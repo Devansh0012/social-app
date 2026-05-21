@@ -21,6 +21,7 @@ import { useAuthHydrated, useAuthStore } from '@/lib/auth-store';
 import { cn } from '@/lib/utils';
 import { gql } from '@/lib/graphql-client';
 import { ME_QUERY } from '@/lib/queries';
+import { useRealtimeSync } from '@/lib/use-realtime-sync';
 
 interface NavItem {
   href: string;
@@ -52,6 +53,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const accessToken = useAuthStore((s) => s.accessToken);
   const setViewer = useAuthStore((s) => s.setViewer);
   const clear = useAuthStore((s) => s.clear);
+
+  useRealtimeSync();
 
   useEffect(() => {
     if (!hydrated) return;

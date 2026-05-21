@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
 import Link from 'next/link';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Inbox } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,7 +9,6 @@ import { Avatar } from '@/components/ui/avatar';
 import { gql } from '@/lib/graphql-client';
 import { CONVERSATIONS_QUERY } from '@/lib/queries';
 import { useAuthStore } from '@/lib/auth-store';
-import { env } from '@/lib/env';
 import { relativeTime } from '@/lib/utils';
 
 interface ConversationsResp {
@@ -36,31 +34,12 @@ interface ConversationsResp {
 }
 
 export default function MessagesPage() {
-  const accessToken = useAuthStore((s) => s.accessToken);
   const viewer = useAuthStore((s) => s.viewer);
-  const qc = useQueryClient();
 
   const q = useQuery({
     queryKey: ['conversations'],
     queryFn: () => gql<ConversationsResp>(CONVERSATIONS_QUERY),
   });
-
-  // Listen on the user channel for new DMs and refresh the conversation list.
-  useEffect(() => {
-    if (!accessToken) return;
-    const ws = new WebSocket(`${env.wsUrl}/notifications?token=${accessToken}`);
-    ws.onmessage = (evt) => {
-      try {
-        const envelope = JSON.parse(evt.data as string) as { type: string };
-        if (envelope.type === 'DM_NEW' || envelope.type === 'NOTIFICATION_NEW') {
-          qc.invalidateQueries({ queryKey: ['conversations'] });
-        }
-      } catch {
-        /* ignore */
-      }
-    };
-    return () => ws.close();
-  }, [accessToken, qc]);
 
   return (
     <div className="flex flex-col gap-3">

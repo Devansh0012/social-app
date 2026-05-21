@@ -14,7 +14,7 @@ const schema = z.object({
 
   JWT_ACCESS_SECRET: z.string().min(16),
   JWT_REFRESH_SECRET: z.string().min(16),
-  JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(900),
+  JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(60 * 60 * 4),
   JWT_REFRESH_TTL_SECONDS: z.coerce.number().int().positive().default(60 * 60 * 24 * 30),
   EMAIL_VERIFY_TTL_SECONDS: z.coerce.number().int().positive().default(60 * 60 * 24),
   PASSWORD_RESET_TTL_SECONDS: z.coerce.number().int().positive().default(60 * 60),

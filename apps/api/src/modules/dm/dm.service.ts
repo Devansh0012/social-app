@@ -147,8 +147,8 @@ export class DMService {
     }));
   }
 
-  async sendMessage(viewerId: string, conversationId: string, rawInput: unknown) {
-    const parsed = SendMessageSchema.safeParse(rawInput);
+  async sendMessage(viewerId: string, conversationId: string, body: unknown) {
+    const parsed = SendMessageSchema.safeParse({ body });
     if (!parsed.success) throw Validation('Invalid message', parsed.error.flatten());
 
     const convo = await this.getConversation(viewerId, conversationId);

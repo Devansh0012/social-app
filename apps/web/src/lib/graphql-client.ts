@@ -69,8 +69,15 @@ async function tryRefresh(): Promise<string | null> {
       refreshToken: data.refresh.tokens.refreshToken,
     });
     return data.refresh.tokens.accessToken;
-  } catch {
-    clear();
+  } catch (err) {
+    // Only wipe localStorage if the server explicitly said our refresh
+    // token is bad. Transient network errors / 5xx leave the tokens
+    // intact so the next attempt can succeed.
+    const code = (err as { response?: { errors?: Array<{ extensions?: { code?: string } }> } })
+      ?.response?.errors?.[0]?.extensions?.code;
+    if (code === 'UNAUTHENTICATED' || code === 'ACCOUNT_BANNED') {
+      clear();
+    }
     return null;
   }
 }

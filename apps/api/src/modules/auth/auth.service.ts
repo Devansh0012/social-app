@@ -131,9 +131,22 @@ export class AuthService {
       await this.repo.revokeRefreshTokenFamily(payload.family);
       throw Unauthenticated('Refresh token replay detected');
     }
+
+    // Grace window for multi-tab refreshes: when the user has several tabs
+    // open, all of them notice the access token expired at roughly the same
+    // moment and race to refresh with the same token. The first one wins
+    // and rotates; the rest hit a revoked token. Without a grace window,
+    // we'd kill the whole family and log the user out. Instead, allow
+    // already-rotated tokens within REFRESH_ROTATION_GRACE_MS to mint a
+    // fresh pair off the same family.
+    const REFRESH_ROTATION_GRACE_MS = 60_000;
     if (stored.revokedAt) {
-      await this.repo.revokeRefreshTokenFamily(stored.family);
-      throw Unauthenticated('Refresh token revoked');
+      const withinGrace = Date.now() - stored.revokedAt.getTime() < REFRESH_ROTATION_GRACE_MS;
+      if (!withinGrace) {
+        await this.repo.revokeRefreshTokenFamily(stored.family);
+        throw Unauthenticated('Refresh token revoked');
+      }
+      // fall through — race-friendly path
     }
     if (stored.expiresAt < new Date()) throw Unauthenticated('Refresh token expired');
 
@@ -142,7 +155,9 @@ export class AuthService {
     if (user.status === 'BANNED') throw AccountBanned();
 
     const newTokens = await this.issueTokenPair(user, context, { family: stored.family });
-    await this.repo.revokeRefreshToken(stored.id);
+    if (!stored.revokedAt) {
+      await this.repo.revokeRefreshToken(stored.id);
+    }
     return { user, tokens: newTokens };
   }
 
