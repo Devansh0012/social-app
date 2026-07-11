@@ -8,6 +8,8 @@ export const notificationTypeDefs = /* GraphQL */ `
     COMMUNITY_INVITE
     MENTION
     SYSTEM
+    NEW_FOLLOWER
+    NEW_DM
   }
 
   type Notification {

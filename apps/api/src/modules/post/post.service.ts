@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { PostType, Prisma } from '@prisma/client';
 import { prisma } from '../../core/prisma.js';
-import { Forbidden, NotFound, Validation } from '../../core/errors.js';
+import { Forbidden, NotFound, Validation, parseOrThrow } from '../../core/errors.js';
 import { eventBus } from '../../core/events/event-bus.js';
 import {
   buildConnection,
@@ -68,9 +68,7 @@ export type FeedKind = 'GLOBAL' | 'TRENDING' | 'FOLLOWING' | 'COMMUNITY' | 'PERS
 export class PostService {
   /* ----------------------------------------------------------- create */
   async create(authorId: string, rawInput: unknown) {
-    const parsed = CreatePostSchema.safeParse(rawInput);
-    if (!parsed.success) throw Validation('Invalid post input', parsed.error.flatten());
-    const input = parsed.data;
+    const input = parseOrThrow(CreatePostSchema, rawInput, 'Invalid post input');
 
     if (input.communityId) {
       const member = await prisma.communityMember.findUnique({
@@ -330,15 +328,14 @@ export class PostService {
 
   /* ----------------------------------------------------- comments */
   async addComment(authorId: string, rawInput: unknown) {
-    const parsed = CommentSchema.safeParse(rawInput);
-    if (!parsed.success) throw Validation('Invalid comment input', parsed.error.flatten());
+    const input = parseOrThrow(CommentSchema, rawInput, 'Invalid comment input');
 
-    const post = await prisma.post.findUnique({ where: { id: parsed.data.postId } });
+    const post = await prisma.post.findUnique({ where: { id: input.postId } });
     if (!post || post.deletedAt) throw NotFound('Post not found');
 
     let parentAuthorId: string | null = null;
-    if (parsed.data.parentId) {
-      const parent = await prisma.comment.findUnique({ where: { id: parsed.data.parentId } });
+    if (input.parentId) {
+      const parent = await prisma.comment.findUnique({ where: { id: input.parentId } });
       if (!parent || parent.postId !== post.id) throw NotFound('Parent comment not found');
       parentAuthorId = parent.authorId;
     }
@@ -348,8 +345,8 @@ export class PostService {
         data: {
           authorId,
           postId: post.id,
-          parentId: parsed.data.parentId ?? null,
-          body: parsed.data.body,
+          parentId: input.parentId ?? null,
+          body: input.body,
         },
       });
       await tx.post.update({
@@ -378,11 +375,10 @@ export class PostService {
 
   /* ---------------------------------------------------- collab apply */
   async applyToCollab(applicantId: string, rawInput: unknown) {
-    const parsed = CollabApplySchema.safeParse(rawInput);
-    if (!parsed.success) throw Validation('Invalid application', parsed.error.flatten());
+    const input = parseOrThrow(CollabApplySchema, rawInput, 'Invalid application');
 
     const collab = await prisma.collabPost.findUnique({
-      where: { postId: parsed.data.postId },
+      where: { postId: input.postId },
       include: { post: true },
     });
     if (!collab) throw NotFound('Collaboration post not found');
@@ -392,14 +388,14 @@ export class PostService {
 
     const application = await prisma.collabApplication.create({
       data: {
-        collabPostId: parsed.data.postId,
+        collabPostId: input.postId,
         applicantId,
-        message: parsed.data.message,
+        message: input.message,
       },
     });
 
     eventBus.emit('collab.applied', {
-      postId: parsed.data.postId,
+      postId: input.postId,
       collabOwnerId: collab.post.authorId,
       applicantId,
       applicationId: application.id,
@@ -452,8 +448,7 @@ export class PostService {
 
   /* ------------------------------------------------ edit / delete */
   async update(viewerId: string, postId: string, rawInput: unknown) {
-    const parsed = UpdatePostSchema.safeParse(rawInput);
-    if (!parsed.success) throw Validation('Invalid input', parsed.error.flatten());
+    const input = parseOrThrow(UpdatePostSchema, rawInput, 'Invalid input');
 
     const post = await prisma.post.findUnique({ where: { id: postId } });
     if (!post || post.deletedAt || post.removedByAdmin) throw NotFound('Post not found');
@@ -462,10 +457,10 @@ export class PostService {
     return prisma.post.update({
       where: { id: postId },
       data: {
-        title: parsed.data.title === null ? null : parsed.data.title,
-        body: parsed.data.body === null ? null : parsed.data.body,
-        linkUrl: parsed.data.linkUrl === null ? null : parsed.data.linkUrl,
-        tags: parsed.data.tags,
+        title: input.title === null ? null : input.title,
+        body: input.body === null ? null : input.body,
+        linkUrl: input.linkUrl === null ? null : input.linkUrl,
+        tags: input.tags,
       },
     });
   }
@@ -491,8 +486,7 @@ export class PostService {
   }
 
   async updateComment(viewerId: string, commentId: string, rawInput: unknown) {
-    const parsed = UpdateCommentSchema.safeParse(rawInput);
-    if (!parsed.success) throw Validation('Invalid input', parsed.error.flatten());
+    const input = parseOrThrow(UpdateCommentSchema, rawInput, 'Invalid input');
 
     const comment = await prisma.comment.findUnique({ where: { id: commentId } });
     if (!comment || comment.deletedAt) throw NotFound('Comment not found');
@@ -500,7 +494,7 @@ export class PostService {
 
     return prisma.comment.update({
       where: { id: commentId },
-      data: { body: parsed.data.body },
+      data: { body: input.body },
     });
   }
 

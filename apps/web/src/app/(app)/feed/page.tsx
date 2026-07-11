@@ -5,17 +5,14 @@ import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { gql } from '@/lib/graphql-client';
 import { FEED_QUERY } from '@/lib/queries';
 import { Button } from '@/components/ui/button';
-import { PostCard, type PostNode } from '@/components/post-card';
+import { PostCard, type PostConnection } from '@/components/post-card';
 import { PostComposer } from '@/components/post-composer';
 import { cn } from '@/lib/utils';
 
 type FeedKind = 'PERSONALIZED' | 'GLOBAL' | 'TRENDING';
 
 interface FeedResp {
-  feed: {
-    nodes: PostNode[];
-    pageInfo: { hasNextPage: boolean; endCursor: string | null };
-  };
+  feed: PostConnection;
 }
 
 const TABS: { key: FeedKind; label: string }[] = [

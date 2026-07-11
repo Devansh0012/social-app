@@ -13,17 +13,9 @@ import {
   ADMIN_CREATE_COLLEGE_MUTATION,
   ADMIN_DELETE_COLLEGE_MUTATION,
   ADMIN_UPDATE_COLLEGE_MUTATION,
+  type AdminCollege,
 } from '@/lib/queries';
 import { relativeTime } from '@/lib/utils';
-
-interface AdminCollege {
-  id: string;
-  name: string;
-  domain: string;
-  country: string | null;
-  createdAt: string;
-  userCount: number;
-}
 
 interface CollegesResp {
   adminColleges: AdminCollege[];

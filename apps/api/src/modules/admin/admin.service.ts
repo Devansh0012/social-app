@@ -2,7 +2,7 @@ import slugify from 'slugify';
 import { z } from 'zod';
 import type { Prisma, ReportTargetType, Role, UserStatus } from '@prisma/client';
 import { prisma } from '../../core/prisma.js';
-import { Conflict, NotFound, Validation } from '../../core/errors.js';
+import { Conflict, NotFound, Validation, parseOrThrow } from '../../core/errors.js';
 import { hashPassword } from '../../core/auth/password.js';
 import {
   buildConnection,
@@ -212,9 +212,7 @@ export class AdminService {
   }
 
   async createUser(rawInput: unknown) {
-    const parsed = CreateUserSchema.safeParse(rawInput);
-    if (!parsed.success) throw Validation('Invalid input', parsed.error.flatten());
-    const input = parsed.data;
+    const input = parseOrThrow(CreateUserSchema, rawInput, 'Invalid input');
     const email = input.email.toLowerCase();
 
     const college = await prisma.college.findUnique({ where: { id: input.collegeId } });
@@ -263,9 +261,7 @@ export class AdminService {
   }
 
   async createCollege(rawInput: unknown) {
-    const parsed = CreateCollegeSchema.safeParse(rawInput);
-    if (!parsed.success) throw Validation('Invalid input', parsed.error.flatten());
-    const input = parsed.data;
+    const input = parseOrThrow(CreateCollegeSchema, rawInput, 'Invalid input');
     try {
       return await prisma.college.create({
         data: {
@@ -283,17 +279,16 @@ export class AdminService {
   }
 
   async updateCollege(id: string, rawInput: unknown) {
-    const parsed = UpdateCollegeSchema.safeParse(rawInput);
-    if (!parsed.success) throw Validation('Invalid input', parsed.error.flatten());
+    const input = parseOrThrow(UpdateCollegeSchema, rawInput, 'Invalid input');
     const existing = await prisma.college.findUnique({ where: { id } });
     if (!existing) throw NotFound('College not found');
     try {
       return await prisma.college.update({
         where: { id },
         data: {
-          name: parsed.data.name,
-          domain: parsed.data.domain,
-          country: parsed.data.country,
+          name: input.name,
+          domain: input.domain,
+          country: input.country,
         },
       });
     } catch (err) {

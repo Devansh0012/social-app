@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../core/prisma.js';
-import { Forbidden, NotFound, Validation } from '../../core/errors.js';
+import { Forbidden, NotFound, parseOrThrow } from '../../core/errors.js';
 import { eventBus } from '../../core/events/event-bus.js';
 import { userChannel, wsManager } from '../../core/ws/ws-manager.js';
 import {
@@ -148,8 +148,7 @@ export class DMService {
   }
 
   async sendMessage(viewerId: string, conversationId: string, body: unknown) {
-    const parsed = SendMessageSchema.safeParse({ body });
-    if (!parsed.success) throw Validation('Invalid message', parsed.error.flatten());
+    const input = parseOrThrow(SendMessageSchema, { body }, 'Invalid message');
 
     const convo = await this.getConversation(viewerId, conversationId);
 
@@ -158,7 +157,7 @@ export class DMService {
         data: {
           conversationId,
           authorId: viewerId,
-          body: parsed.data.body,
+          body: input.body,
         },
         include: { author: { include: { college: true } } },
       });

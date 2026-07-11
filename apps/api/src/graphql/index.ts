@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import mercurius from 'mercurius';
+import mercurius, { type IResolvers } from 'mercurius';
 import { DateTimeResolver, JSONResolver } from 'graphql-scalars';
 import { buildContext, type GqlContext } from './context.js';
 import { AppError } from '../core/errors.js';
@@ -62,7 +62,7 @@ export async function registerGraphQL(app: FastifyInstance): Promise<void> {
 
   await app.register(mercurius, {
     schema,
-    resolvers: resolvers as never,
+    resolvers: resolvers as IResolvers,
     graphiql: true,
     path: '/graphql',
     context: (request, reply) => buildContext(request, reply) as Promise<GqlContext>,

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { prisma } from '../../core/prisma.js';
-import { BadRequest, Conflict, NotFound, Validation } from '../../core/errors.js';
+import { BadRequest, Conflict, NotFound, parseOrThrow } from '../../core/errors.js';
 
 const UsernameSchema = z
   .string()
@@ -59,29 +59,24 @@ export class UserService {
   }
 
   async updateProfile(userId: string, rawInput: unknown) {
-    const parsed = UpdateProfileSchema.safeParse(rawInput);
-    if (!parsed.success) throw Validation('Invalid profile input', parsed.error.flatten());
+    const input = parseOrThrow(UpdateProfileSchema, rawInput, 'Invalid profile input');
 
-    if (parsed.data.username) {
-      const taken = await prisma.user.findFirst({
-        where: { username: parsed.data.username.toLowerCase(), NOT: { id: userId } },
-        select: { id: true },
-      });
-      if (taken) throw Conflict('That username is taken.');
+    if (input.username) {
+      await this.assertUsernameFree(userId, input.username.toLowerCase());
     }
 
     const updated = await prisma.user.update({
       where: { id: userId },
       data: {
-        fullName: parsed.data.fullName,
-        username: parsed.data.username?.toLowerCase(),
-        bio: parsed.data.bio,
-        avatarUrl: parsed.data.avatarUrl,
-        department: parsed.data.department,
-        graduationYear: parsed.data.graduationYear,
-        interests: parsed.data.interests,
-        skills: parsed.data.skills,
-        socialLinks: parsed.data.socialLinks ?? undefined,
+        fullName: input.fullName,
+        username: input.username?.toLowerCase(),
+        bio: input.bio,
+        avatarUrl: input.avatarUrl,
+        department: input.department,
+        graduationYear: input.graduationYear,
+        interests: input.interests,
+        skills: input.skills,
+        socialLinks: input.socialLinks ?? undefined,
       },
       include: { college: true },
     });
@@ -89,29 +84,33 @@ export class UserService {
   }
 
   async completeOnboarding(userId: string, rawInput: unknown) {
-    const parsed = CompleteOnboardingSchema.safeParse(rawInput);
-    if (!parsed.success) throw Validation('Invalid onboarding input', parsed.error.flatten());
+    const input = parseOrThrow(CompleteOnboardingSchema, rawInput, 'Invalid onboarding input');
 
-    const username = parsed.data.username.toLowerCase();
-    const taken = await prisma.user.findFirst({
-      where: { username, NOT: { id: userId } },
-      select: { id: true },
-    });
-    if (taken) throw Conflict('That username is taken.');
+    const username = input.username.toLowerCase();
+    await this.assertUsernameFree(userId, username);
 
     return prisma.user.update({
       where: { id: userId },
       data: {
         username,
-        department: parsed.data.department,
-        graduationYear: parsed.data.graduationYear,
-        interests: parsed.data.interests,
-        skills: parsed.data.skills ?? [],
-        bio: parsed.data.bio,
+        department: input.department,
+        graduationYear: input.graduationYear,
+        interests: input.interests,
+        skills: input.skills ?? [],
+        bio: input.bio,
         onboardingCompleted: true,
       },
       include: { college: true },
     });
+  }
+
+  /** Throw CONFLICT if `username` (already lowercased) belongs to another user. */
+  private async assertUsernameFree(userId: string, username: string): Promise<void> {
+    const taken = await prisma.user.findFirst({
+      where: { username, NOT: { id: userId } },
+      select: { id: true },
+    });
+    if (taken) throw Conflict('That username is taken.');
   }
 
   async listColleges(search: string | null | undefined) {

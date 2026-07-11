@@ -10,6 +10,7 @@ import { gql } from '@/lib/graphql-client';
 import {
   MARK_NOTIFICATION_READ_MUTATION,
   NOTIFICATIONS_QUERY,
+  type PublicUser,
 } from '@/lib/queries';
 import { cn, relativeTime } from '@/lib/utils';
 
@@ -20,12 +21,7 @@ interface NotificationsResp {
     payload: Record<string, unknown>;
     readAt: string | null;
     createdAt: string;
-    actor: {
-      id: string;
-      username: string;
-      fullName: string;
-      avatarUrl: string | null;
-    } | null;
+    actor: PublicUser | null;
   }>;
   unreadNotificationCount: number;
 }
@@ -103,7 +99,10 @@ function NotificationIcon({ type }: { type: string }) {
       return <MessageCircle className="h-4 w-4 text-[var(--color-brand-hi)]" />;
     case 'COLLAB_REQUEST':
     case 'COLLAB_RESPONSE':
+    case 'NEW_FOLLOWER':
       return <UserPlus className="h-4 w-4 text-[var(--color-accent)]" />;
+    case 'NEW_DM':
+      return <MessageCircle className="h-4 w-4 text-[var(--color-brand-hi)]" />;
     default:
       return <Sparkles className="h-4 w-4" />;
   }
@@ -126,6 +125,10 @@ function summarise(n: NotificationsResp['notifications'][number]): string {
       return `${actor} invited you to a community`;
     case 'MENTION':
       return `${actor} mentioned you`;
+    case 'NEW_FOLLOWER':
+      return `${actor} started following you`;
+    case 'NEW_DM':
+      return `${actor} sent you a message`;
     default:
       return 'New activity';
   }

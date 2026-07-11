@@ -2,14 +2,9 @@ import slugify from 'slugify';
 import { z } from 'zod';
 import type { CommunityPrivacy } from '@prisma/client';
 import { prisma } from '../../core/prisma.js';
-import { Conflict, Forbidden, NotFound, Validation } from '../../core/errors.js';
+import { Conflict, Forbidden, NotFound, parseOrThrow } from '../../core/errors.js';
 import { eventBus } from '../../core/events/event-bus.js';
-import {
-  buildConnection,
-  decodeCursor,
-  encodeCursor,
-  PaginationInput,
-} from '../../core/pagination.js';
+import { buildConnection, decodeCursor, PaginationInput } from '../../core/pagination.js';
 
 const CreateCommunitySchema = z.object({
   name: z.string().trim().min(3).max(50),
@@ -24,21 +19,20 @@ const UpdateCommunitySchema = CreateCommunitySchema.partial();
 
 export class CommunityService {
   async create(creatorId: string, rawInput: unknown) {
-    const parsed = CreateCommunitySchema.safeParse(rawInput);
-    if (!parsed.success) throw Validation('Invalid community input', parsed.error.flatten());
+    const input = parseOrThrow(CreateCommunitySchema, rawInput, 'Invalid community input');
 
-    const slug = await this.ensureUniqueSlug(parsed.data.name);
+    const slug = await this.ensureUniqueSlug(input.name);
 
     return prisma.$transaction(async (tx) => {
       const community = await tx.community.create({
         data: {
           slug,
-          name: parsed.data.name,
-          description: parsed.data.description,
-          iconUrl: parsed.data.iconUrl,
-          bannerUrl: parsed.data.bannerUrl,
-          tags: parsed.data.tags ?? [],
-          privacy: parsed.data.privacy as CommunityPrivacy,
+          name: input.name,
+          description: input.description,
+          iconUrl: input.iconUrl,
+          bannerUrl: input.bannerUrl,
+          tags: input.tags ?? [],
+          privacy: input.privacy as CommunityPrivacy,
           creatorId,
           memberCount: 1,
         },
@@ -51,19 +45,18 @@ export class CommunityService {
   }
 
   async update(viewerId: string, communityId: string, rawInput: unknown) {
-    const parsed = UpdateCommunitySchema.safeParse(rawInput);
-    if (!parsed.success) throw Validation('Invalid input', parsed.error.flatten());
+    const input = parseOrThrow(UpdateCommunitySchema, rawInput, 'Invalid input');
 
     await this.assertCanModerate(viewerId, communityId);
     return prisma.community.update({
       where: { id: communityId },
       data: {
-        name: parsed.data.name,
-        description: parsed.data.description,
-        iconUrl: parsed.data.iconUrl,
-        bannerUrl: parsed.data.bannerUrl,
-        tags: parsed.data.tags,
-        privacy: parsed.data.privacy as CommunityPrivacy | undefined,
+        name: input.name,
+        description: input.description,
+        iconUrl: input.iconUrl,
+        bannerUrl: input.bannerUrl,
+        tags: input.tags,
+        privacy: input.privacy as CommunityPrivacy | undefined,
       },
     });
   }
@@ -188,4 +181,3 @@ export class CommunityService {
 }
 
 export const communityService = new CommunityService();
-export { encodeCursor };

@@ -1,5 +1,6 @@
-import type { Role, UserStatus } from '@prisma/client';
+import type { College, Role, UserStatus } from '@prisma/client';
 import type { GqlContext } from '../../graphql/context.js';
+import type { PaginationArgs } from '../../core/pagination.js';
 import { adminService } from './admin.service.js';
 
 interface ListReportsArgs {
@@ -28,11 +29,9 @@ interface ResolveReportArgs {
   status: 'RESOLVED' | 'DISMISSED';
 }
 
-interface AdminUsersArgs {
+interface AdminUsersArgs extends PaginationArgs {
   status?: UserStatus | null;
   search?: string | null;
-  first?: number | null;
-  after?: string | null;
 }
 interface AdminCreateUserArgs {
   input: Parameters<(typeof adminService)['createUser']>[0];
@@ -134,7 +133,7 @@ export const adminResolvers = {
     },
   },
   AdminUserView: {
-    college(parent: { college: unknown }) {
+    college(parent: { college: College | null }) {
       return parent.college;
     },
   },

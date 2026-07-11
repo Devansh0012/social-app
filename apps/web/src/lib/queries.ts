@@ -26,6 +26,36 @@ export const VIEWER_FRAGMENT = /* GraphQL */ `
   }
 `;
 
+/** Shape of every `pageInfo { hasNextPage endCursor }` selection below. */
+export interface PageInfo {
+  hasNextPage: boolean;
+  endCursor: string | null;
+}
+
+/**
+ * TS mirror of PUBLIC_USER_FRAGMENT — the shape every `...PublicUserFields`
+ * selection (post/comment authors, notification actors, search results,
+ * profiles) returns at runtime. Keep in sync with the fragment below.
+ */
+export interface PublicUser {
+  id: string;
+  username: string;
+  fullName: string;
+  avatarUrl: string | null;
+  bio: string | null;
+  college: { id: string; name: string; domain: string } | null;
+  department: string | null;
+  graduationYear: number | null;
+  interests: string[];
+  skills: string[];
+  isVerifiedStudent: boolean;
+  reputationScore: number;
+  createdAt: string;
+  followerCount: number;
+  followingCount: number;
+  viewerIsFollowing: boolean;
+}
+
 export const PUBLIC_USER_FRAGMENT = /* GraphQL */ `
   fragment PublicUserFields on PublicUser {
     id
@@ -120,17 +150,6 @@ export const ME_QUERY = /* GraphQL */ `
   ${VIEWER_FRAGMENT}
 `;
 
-export const COLLEGES_QUERY = /* GraphQL */ `
-  query Colleges($search: String) {
-    colleges(search: $search) {
-      id
-      name
-      domain
-      country
-    }
-  }
-`;
-
 export const USERNAME_CHECK_QUERY = /* GraphQL */ `
   query UsernameCheck($username: String!) {
     isUsernameAvailable(username: $username) {
@@ -208,18 +227,6 @@ export const COMMUNITY_QUERY = /* GraphQL */ `
   ${PUBLIC_USER_FRAGMENT}
 `;
 
-export const MY_COMMUNITIES_QUERY = /* GraphQL */ `
-  query MyCommunities {
-    myCommunities {
-      id
-      slug
-      name
-      iconUrl
-      memberCount
-    }
-  }
-`;
-
 export const JOIN_COMMUNITY_MUTATION = /* GraphQL */ `
   mutation JoinCommunity($communityId: ID!) {
     joinCommunity(communityId: $communityId) { id memberCount viewerMembership { role joinedAt } }
@@ -274,6 +281,19 @@ export const SHARE_POST_MUTATION = /* GraphQL */ `
     sharePost(postId: $postId) { id shareCount }
   }
 `;
+
+/**
+ * Common shape of a comment row as returned by postComments / userComments /
+ * addComment / updateComment. `parentId` is only fetched by POST_DETAIL_QUERY,
+ * so it lives on the page-local extension, not here.
+ */
+export interface CommentRow {
+  id: string;
+  postId: string;
+  body: string;
+  createdAt: string;
+  author: PublicUser;
+}
 
 export const POST_DETAIL_QUERY = /* GraphQL */ `
   query PostDetail($id: ID!) {
@@ -424,6 +444,16 @@ export const ADMIN_CREATE_USER_MUTATION = /* GraphQL */ `
   ${ADMIN_USER_FRAGMENT}
 `;
 
+/** TS mirror of the adminColleges selection below. */
+export interface AdminCollege {
+  id: string;
+  name: string;
+  domain: string;
+  country: string | null;
+  createdAt: string;
+  userCount: number;
+}
+
 export const ADMIN_COLLEGES_QUERY = /* GraphQL */ `
   query AdminColleges($search: String) {
     adminColleges(search: $search) {
@@ -470,27 +500,17 @@ export const UNFOLLOW_USER_MUTATION = /* GraphQL */ `
   ${PUBLIC_USER_FRAGMENT}
 `;
 
-export const FOLLOWERS_QUERY = /* GraphQL */ `
-  query Followers($username: String!, $after: String) {
-    followers(username: $username, after: $after, first: 25) {
-      nodes { ...PublicUserFields }
-      pageInfo { hasNextPage endCursor }
-    }
-  }
-  ${PUBLIC_USER_FRAGMENT}
-`;
-
-export const FOLLOWING_QUERY = /* GraphQL */ `
-  query Following($username: String!, $after: String) {
-    following(username: $username, after: $after, first: 25) {
-      nodes { ...PublicUserFields }
-      pageInfo { hasNextPage endCursor }
-    }
-  }
-  ${PUBLIC_USER_FRAGMENT}
-`;
-
 /* ------------------------------------ DMs ------------------------------------- */
+
+/** TS mirror of DM_AUTHOR_FRAGMENT — the compact user shape used in DMs. */
+export interface DMAuthor {
+  id: string;
+  username: string;
+  fullName: string;
+  avatarUrl: string | null;
+  isVerifiedStudent: boolean;
+  college: { id: string; name: string } | null;
+}
 
 export const DM_AUTHOR_FRAGMENT = /* GraphQL */ `
   fragment DMAuthor on PublicUser {

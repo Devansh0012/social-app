@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
 import { gql } from '@/lib/graphql-client';
-import { CONVERSATIONS_QUERY } from '@/lib/queries';
+import { CONVERSATIONS_QUERY, type DMAuthor } from '@/lib/queries';
 import { useAuthStore } from '@/lib/auth-store';
 import { relativeTime } from '@/lib/utils';
 
@@ -16,13 +16,7 @@ interface ConversationsResp {
     id: string;
     lastMessageAt: string;
     unreadCount: number;
-    otherParticipants: Array<{
-      id: string;
-      username: string;
-      fullName: string;
-      avatarUrl: string | null;
-      isVerifiedStudent: boolean;
-    }>;
+    otherParticipants: DMAuthor[];
     lastMessage: {
       id: string;
       body: string;

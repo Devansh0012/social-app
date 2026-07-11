@@ -18,5 +18,3 @@ export const prisma =
 if (config.NODE_ENV !== 'production') {
   globalThis.__braventexPrisma = prisma;
 }
-
-export type Prisma = typeof prisma;

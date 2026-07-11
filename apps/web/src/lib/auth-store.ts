@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+export type UserRole = 'USER' | 'ADMIN';
+export type UserStatus = 'PENDING_VERIFICATION' | 'ACTIVE' | 'BANNED';
+
 export interface Viewer {
   id: string;
   email: string;
@@ -17,8 +20,8 @@ export interface Viewer {
   interests: string[];
   skills: string[];
   socialLinks: Record<string, string> | null;
-  role: 'USER' | 'ADMIN';
-  status: 'PENDING_VERIFICATION' | 'ACTIVE' | 'BANNED';
+  role: UserRole;
+  status: UserStatus;
   emailVerified: boolean;
   isVerifiedStudent: boolean;
   onboardingCompleted: boolean;

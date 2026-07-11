@@ -31,6 +31,8 @@ import {
   UNBOOKMARK_POST_MUTATION,
   UNLIKE_POST_MUTATION,
   UPDATE_POST_MUTATION,
+  type PageInfo,
+  type PublicUser,
 } from '@/lib/queries';
 import { useAuthStore } from '@/lib/auth-store';
 
@@ -49,14 +51,7 @@ export interface PostNode {
   publishedAt: string;
   viewerHasLiked: boolean;
   viewerHasBookmarked: boolean;
-  author: {
-    id: string;
-    username: string;
-    fullName: string;
-    avatarUrl: string | null;
-    isVerifiedStudent: boolean;
-    college: { name: string } | null;
-  };
+  author: PublicUser;
   community?: { id: string; slug: string; name: string; iconUrl: string | null } | null;
   collab?: {
     projectTitle: string;
@@ -68,6 +63,12 @@ export interface PostNode {
     openSlots: number;
     isClosed: boolean;
   } | null;
+}
+
+/** Shape of a paginated post connection as returned by feed/userPosts/etc. queries. */
+export interface PostConnection {
+  nodes: PostNode[];
+  pageInfo: PageInfo;
 }
 
 export function PostCard({ post: initial }: { post: PostNode }) {

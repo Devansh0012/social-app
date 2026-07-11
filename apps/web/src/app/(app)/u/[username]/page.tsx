@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/input';
-import { PostCard, type PostNode } from '@/components/post-card';
+import { PostCard, type PostConnection, type PostNode } from '@/components/post-card';
 import { gql } from '@/lib/graphql-client';
 import {
   DELETE_COMMENT_MUTATION,
@@ -23,28 +23,11 @@ import {
   USER_COMMENTS_QUERY,
   USER_POSTS_QUERY,
   USER_PROFILE_QUERY,
+  type CommentRow,
+  type PublicUser,
 } from '@/lib/queries';
 import { useAuthStore } from '@/lib/auth-store';
 import { cn, relativeTime } from '@/lib/utils';
-
-interface PublicUser {
-  id: string;
-  username: string;
-  fullName: string;
-  avatarUrl: string | null;
-  bio: string | null;
-  department: string | null;
-  graduationYear: number | null;
-  interests: string[];
-  skills: string[];
-  isVerifiedStudent: boolean;
-  reputationScore: number;
-  college: { id: string; name: string } | null;
-  createdAt: string;
-  followerCount: number;
-  followingCount: number;
-  viewerIsFollowing: boolean;
-}
 
 interface ProfileResp {
   user: PublicUser | null;
@@ -236,17 +219,12 @@ export default function ProfilePage({ params }: { params: Promise<{ username: st
   );
 }
 
-interface PostConn {
-  nodes: PostNode[];
-  pageInfo: { hasNextPage: boolean; endCursor: string | null };
-}
-
 function PostsList({ username }: { username: string }) {
   const query = useInfiniteQuery({
     queryKey: ['userPosts', username],
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) =>
-      gql<{ userPosts: PostConn }>(USER_POSTS_QUERY, {
+      gql<{ userPosts: PostConnection }>(USER_POSTS_QUERY, {
         username,
         after: pageParam ?? null,
       }),
@@ -274,7 +252,7 @@ function MyPostList({ queryKey }: { queryKey: 'myLikedPosts' | 'myBookmarkedPost
     queryKey: [queryKey],
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) =>
-      gql<Record<typeof queryKey, PostConn>>(document, {
+      gql<Record<typeof queryKey, PostConnection>>(document, {
         after: pageParam ?? null,
       }),
     getNextPageParam: (last) =>
@@ -328,14 +306,6 @@ function FeedList({
       ) : null}
     </div>
   );
-}
-
-interface CommentRow {
-  id: string;
-  postId: string;
-  body: string;
-  createdAt: string;
-  author: { id: string; username: string; fullName: string; avatarUrl: string | null };
 }
 
 function CommentsList({ username, isSelf }: { username: string; isSelf: boolean }) {

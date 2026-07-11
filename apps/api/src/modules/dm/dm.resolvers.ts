@@ -1,4 +1,5 @@
 import type { GqlContext } from '../../graphql/context.js';
+import type { PaginationArgs } from '../../core/pagination.js';
 import { dmService } from './dm.service.js';
 
 interface OpenArgs {
@@ -13,10 +14,7 @@ interface ConversationIdArgs {
 interface SendArgs extends ConversationIdArgs {
   body: string;
 }
-interface ListMessagesArgs extends ConversationIdArgs {
-  first?: number | null;
-  after?: string | null;
-}
+interface ListMessagesArgs extends ConversationIdArgs, PaginationArgs {}
 
 export const dmResolvers = {
   Query: {

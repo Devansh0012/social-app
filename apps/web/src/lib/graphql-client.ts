@@ -3,6 +3,7 @@
 import { GraphQLClient, type Variables } from 'graphql-request';
 import { env } from './env';
 import { useAuthStore } from './auth-store';
+import { VIEWER_FRAGMENT } from './queries';
 
 interface RefreshResponse {
   refresh: {
@@ -20,29 +21,7 @@ const REFRESH_MUTATION = /* GraphQL */ `
   mutation Refresh($refreshToken: String!) {
     refresh(refreshToken: $refreshToken) {
       viewer {
-        id
-        email
-        username
-        fullName
-        avatarUrl
-        bio
-        college {
-          id
-          name
-          domain
-        }
-        department
-        graduationYear
-        interests
-        skills
-        socialLinks
-        role
-        status
-        emailVerified
-        isVerifiedStudent
-        onboardingCompleted
-        reputationScore
-        createdAt
+        ...ViewerFields
       }
       tokens {
         accessToken
@@ -52,6 +31,7 @@ const REFRESH_MUTATION = /* GraphQL */ `
       }
     }
   }
+  ${VIEWER_FRAGMENT}
 `;
 
 const baseClient = new GraphQLClient(env.graphqlUrl);

@@ -18,11 +18,11 @@ import {
   ADMIN_UNBAN_USER_MUTATION,
   ADMIN_USERS_QUERY,
   ADMIN_VERIFY_USER_MUTATION,
+  type AdminCollege,
+  type PageInfo,
 } from '@/lib/queries';
+import type { UserRole as Role, UserStatus as Status } from '@/lib/auth-store';
 import { cn, relativeTime } from '@/lib/utils';
-
-type Status = 'PENDING_VERIFICATION' | 'ACTIVE' | 'BANNED';
-type Role = 'USER' | 'ADMIN';
 
 interface AdminUser {
   id: string;
@@ -42,13 +42,13 @@ interface AdminUser {
 interface UsersResp {
   adminUsers: {
     nodes: AdminUser[];
-    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+    pageInfo: PageInfo;
     totalCount: number;
   };
 }
 
 interface CollegesResp {
-  adminColleges: Array<{ id: string; name: string; domain: string; userCount: number }>;
+  adminColleges: AdminCollege[];
 }
 
 const STATUS_FILTERS: Array<{ key: Status | null; label: string }> = [

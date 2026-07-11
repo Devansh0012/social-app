@@ -1,5 +1,5 @@
 import type { StudyRoom, StudyRoomMessage } from '@prisma/client';
-import type { GqlContext } from '../../graphql/context.js';
+import { userWithCollege, type GqlContext } from '../../graphql/context.js';
 import { studyRoomService, type PomodoroState } from './studyRoom.service.js';
 import { roomChannel, wsManager } from '../../core/ws/ws-manager.js';
 
@@ -58,10 +58,7 @@ export const studyRoomResolvers = {
   },
   StudyRoom: {
     async creator(parent: StudyRoom, _a: unknown, ctx: GqlContext) {
-      return ctx.prisma.user.findUnique({
-        where: { id: parent.creatorId },
-        include: { college: true },
-      });
+      return userWithCollege(ctx.prisma, parent.creatorId);
     },
     async members(parent: StudyRoom) {
       return studyRoomService.listMembers(parent.id);
@@ -80,18 +77,12 @@ export const studyRoomResolvers = {
   },
   StudyRoomMember: {
     async user(parent: { userId: string }, _a: unknown, ctx: GqlContext) {
-      return ctx.prisma.user.findUnique({
-        where: { id: parent.userId },
-        include: { college: true },
-      });
+      return userWithCollege(ctx.prisma, parent.userId);
     },
   },
   StudyRoomMessage: {
     async author(parent: StudyRoomMessage, _a: unknown, ctx: GqlContext) {
-      return ctx.prisma.user.findUnique({
-        where: { id: parent.authorId },
-        include: { college: true },
-      });
+      return userWithCollege(ctx.prisma, parent.authorId);
     },
   },
 };

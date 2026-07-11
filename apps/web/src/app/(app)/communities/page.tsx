@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { gql } from '@/lib/graphql-client';
-import { COMMUNITIES_QUERY } from '@/lib/queries';
+import { COMMUNITIES_QUERY, type PageInfo } from '@/lib/queries';
 
 interface CommunitiesResp {
   communities: {
@@ -25,7 +25,7 @@ interface CommunitiesResp {
       privacy: string;
       viewerMembership: { role: string; joinedAt: string } | null;
     }>;
-    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+    pageInfo: PageInfo;
   };
 }
 

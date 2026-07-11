@@ -26,7 +26,7 @@ import {
   EmailNotVerified,
   NotFound,
   Unauthenticated,
-  Validation,
+  parseOrThrow,
 } from '../../core/errors.js';
 
 const SignupSchema = z.object({
@@ -63,9 +63,7 @@ export class AuthService {
 
   /* ----------------------------------------------------------- signup */
   async signup(rawInput: unknown, context: { ip?: string; userAgent?: string }) {
-    const parsed = SignupSchema.safeParse(rawInput);
-    if (!parsed.success) throw Validation('Invalid signup input', parsed.error.flatten());
-    const input = parsed.data;
+    const input = parseOrThrow(SignupSchema, rawInput, 'Invalid signup input');
     const email = input.email.toLowerCase();
 
     const college = await resolveCollegeForEmail(email);
@@ -98,13 +96,12 @@ export class AuthService {
 
   /* ----------------------------------------------------------- login */
   async login(rawInput: unknown, context: { ip?: string; userAgent?: string }) {
-    const parsed = LoginSchema.safeParse(rawInput);
-    if (!parsed.success) throw Validation('Invalid login input', parsed.error.flatten());
+    const input = parseOrThrow(LoginSchema, rawInput, 'Invalid login input');
 
-    const user = await this.repo.findUserByEmail(parsed.data.email);
+    const user = await this.repo.findUserByEmail(input.email);
     if (!user) throw Unauthenticated('Invalid email or password');
 
-    const valid = await verifyPassword(user.passwordHash, parsed.data.password);
+    const valid = await verifyPassword(user.passwordHash, input.password);
     if (!valid) throw Unauthenticated('Invalid email or password');
 
     if (user.status === 'BANNED') throw AccountBanned();

@@ -1,19 +1,18 @@
 import type { StudyMaterial } from '@prisma/client';
-import type { GqlContext } from '../../graphql/context.js';
+import { userWithCollege, type GqlContext } from '../../graphql/context.js';
+import type { PaginationArgs } from '../../core/pagination.js';
 import { storage } from '../../core/storage/storage.js';
 import { studyMaterialService } from './studyMaterial.service.js';
 
 interface IdArgs {
   id: string;
 }
-interface ListArgs {
+interface ListArgs extends PaginationArgs {
   search?: string | null;
   collegeId?: string | null;
   department?: string | null;
   semester?: number | null;
   subject?: string | null;
-  first?: number | null;
-  after?: string | null;
 }
 interface CreateArgs {
   input: Parameters<(typeof studyMaterialService)['create']>[1];
@@ -46,10 +45,7 @@ export const studyMaterialResolvers = {
   },
   StudyMaterial: {
     async uploader(parent: StudyMaterial, _a: unknown, ctx: GqlContext) {
-      return ctx.prisma.user.findUnique({
-        where: { id: parent.uploaderId },
-        include: { college: true },
-      });
+      return userWithCollege(ctx.prisma, parent.uploaderId);
     },
     async college(parent: StudyMaterial, _a: unknown, ctx: GqlContext) {
       if (!parent.collegeId) return null;

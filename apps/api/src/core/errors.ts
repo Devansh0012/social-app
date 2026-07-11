@@ -1,3 +1,5 @@
+import type { z } from 'zod';
+
 /**
  * Domain error hierarchy. Mercurius converts thrown errors into GraphQL errors
  * via the `errorFormatter` in graphql/index.ts — codes here become the
@@ -49,3 +51,17 @@ export const EmailNotVerified = () =>
   new AppError('EMAIL_NOT_VERIFIED', 'Please verify your college email.', 403);
 export const AccountBanned = () =>
   new AppError('ACCOUNT_BANNED', 'This account has been suspended.', 403);
+
+/**
+ * Validate `input` against a zod schema, throwing the standard VALIDATION
+ * AppError (with flattened issue details) on failure. Returns the parsed data.
+ */
+export function parseOrThrow<S extends z.ZodTypeAny>(
+  schema: S,
+  input: unknown,
+  message: string,
+): z.infer<S> {
+  const parsed = schema.safeParse(input);
+  if (!parsed.success) throw Validation(message, parsed.error.flatten());
+  return parsed.data;
+}

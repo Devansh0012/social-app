@@ -1,7 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Role } from '@prisma/client';
 import { prisma } from '../core/prisma.js';
-import { Unauthenticated, Forbidden } from '../core/errors.js';
+import { Unauthenticated, Forbidden, NotFound } from '../core/errors.js';
 import type { AccessTokenPayload } from '../core/auth/jwt.js';
 
 export interface ViewerContext {
@@ -18,6 +18,24 @@ export interface GqlContext {
   viewer: ViewerContext | null;
   requireViewer: () => ViewerContext;
   requireAdmin: () => ViewerContext;
+}
+
+/**
+ * Shared field-resolver helper: load a user (PublicUser/Viewer shape) together
+ * with their college. Used by author/actor/uploader/member resolvers across modules.
+ */
+export function userWithCollege(db: typeof prisma, userId: string) {
+  return db.user.findUnique({ where: { id: userId }, include: { college: true } });
+}
+
+/** Resolve a username (case-insensitive) to a user id, or throw NOT_FOUND. */
+export async function userIdByUsername(db: typeof prisma, username: string): Promise<string> {
+  const u = await db.user.findUnique({
+    where: { username: username.toLowerCase() },
+    select: { id: true },
+  });
+  if (!u) throw NotFound('User not found');
+  return u.id;
 }
 
 export async function buildContext(

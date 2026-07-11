@@ -1,7 +1,7 @@
 import type { Post } from '@prisma/client';
-import type { GqlContext } from '../../graphql/context.js';
+import { userIdByUsername, userWithCollege, type GqlContext } from '../../graphql/context.js';
+import type { PaginationArgs } from '../../core/pagination.js';
 import { postService, type FeedKind } from './post.service.js';
-import { NotFound } from '../../core/errors.js';
 
 interface IdArgs {
   id: string;
@@ -9,11 +9,9 @@ interface IdArgs {
 interface PostIdArgs {
   postId: string;
 }
-interface FeedArgs {
+interface FeedArgs extends PaginationArgs {
   kind: FeedKind;
   communityId?: string | null;
-  first?: number | null;
-  after?: string | null;
 }
 interface CreatePostArgs {
   input: Parameters<(typeof postService)['create']>[1];
@@ -36,24 +34,10 @@ interface UpdateCommentArgs {
   commentId: string;
   body: string;
 }
-interface UsernamePagArgs {
+interface UsernamePagArgs extends PaginationArgs {
   username: string;
-  first?: number | null;
-  after?: string | null;
 }
-interface MyPagArgs {
-  first?: number | null;
-  after?: string | null;
-}
-
-async function userIdByUsername(ctx: GqlContext, username: string): Promise<string> {
-  const u = await ctx.prisma.user.findUnique({
-    where: { username: username.toLowerCase() },
-    select: { id: true },
-  });
-  if (!u) throw NotFound('User not found');
-  return u.id;
-}
+type MyPagArgs = PaginationArgs;
 
 export const postResolvers = {
   Query: {
@@ -81,14 +65,14 @@ export const postResolvers = {
       return postService.listApplicationsForPost(viewer.id, args.postId);
     },
     async userPosts(_p: unknown, args: UsernamePagArgs, ctx: GqlContext) {
-      const userId = await userIdByUsername(ctx, args.username);
+      const userId = await userIdByUsername(ctx.prisma, args.username);
       return postService.listByAuthor(userId, {
         first: args.first ?? undefined,
         after: args.after,
       });
     },
     async userComments(_p: unknown, args: UsernamePagArgs, ctx: GqlContext) {
-      const userId = await userIdByUsername(ctx, args.username);
+      const userId = await userIdByUsername(ctx.prisma, args.username);
       const conn = await postService.listCommentsByAuthor(userId, {
         first: args.first ?? undefined,
         after: args.after,
@@ -169,10 +153,7 @@ export const postResolvers = {
   },
   Post: {
     async author(parent: Post, _a: unknown, ctx: GqlContext) {
-      return ctx.prisma.user.findUnique({
-        where: { id: parent.authorId },
-        include: { college: true },
-      });
+      return userWithCollege(ctx.prisma, parent.authorId);
     },
     async community(parent: Post, _a: unknown, ctx: GqlContext) {
       if (!parent.communityId) return null;
@@ -202,18 +183,12 @@ export const postResolvers = {
   },
   Comment: {
     async author(parent: { authorId: string }, _a: unknown, ctx: GqlContext) {
-      return ctx.prisma.user.findUnique({
-        where: { id: parent.authorId },
-        include: { college: true },
-      });
+      return userWithCollege(ctx.prisma, parent.authorId);
     },
   },
   CollabApplication: {
     async applicant(parent: { applicantId: string }, _a: unknown, ctx: GqlContext) {
-      return ctx.prisma.user.findUnique({
-        where: { id: parent.applicantId },
-        include: { college: true },
-      });
+      return userWithCollege(ctx.prisma, parent.applicantId);
     },
     async post(parent: { collabPostId: string }, _a: unknown, ctx: GqlContext) {
       return ctx.prisma.post.findUnique({ where: { id: parent.collabPostId } });

@@ -14,38 +14,32 @@ import {
   MARK_CONVERSATION_READ_MUTATION,
   MESSAGES_QUERY,
   SEND_DM_MUTATION,
+  type DMAuthor,
+  type PageInfo,
 } from '@/lib/queries';
 import { useAuthStore } from '@/lib/auth-store';
 import { env } from '@/lib/env';
 import { cn, relativeTime } from '@/lib/utils';
-
-interface DMUser {
-  id: string;
-  username: string;
-  fullName: string;
-  avatarUrl: string | null;
-  isVerifiedStudent: boolean;
-}
 
 interface Message {
   id: string;
   conversationId: string;
   body: string;
   createdAt: string;
-  author: DMUser;
+  author: DMAuthor;
 }
 
 interface MessagesResp {
   messages: {
     nodes: Message[];
-    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+    pageInfo: PageInfo;
   };
 }
 
 interface ConvoResp {
   conversation: {
     id: string;
-    otherParticipants: DMUser[];
+    otherParticipants: DMAuthor[];
   };
 }
 
@@ -90,7 +84,7 @@ export default function ConversationPage({ params }: { params: Promise<{ id: str
           );
         }
       } catch {
-        /* ignore */
+        // ignore malformed frames
       }
     };
     return () => ws.close();
@@ -123,7 +117,8 @@ export default function ConversationPage({ params }: { params: Promise<{ id: str
       setMessages((prev) =>
         prev.some((m) => m.id === data.sendMessage.id) ? prev : [...prev, data.sendMessage],
       );
-    } catch (e) {
+    } catch {
+      // Send failed — restore the draft so the user can retry.
       setBody(text);
     } finally {
       setSending(false);

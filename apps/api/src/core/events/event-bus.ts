@@ -51,6 +51,18 @@ export interface AppEvents {
 class TypedEventBus {
   private emitter = new EventEmitter({ captureRejections: true });
 
+  constructor() {
+    // `captureRejections` funnels async listener failures into the 'error'
+    // event. Without this handler an unhandled 'error' emit throws — and,
+    // because emits run inside setImmediate, that would become an uncaught
+    // exception and crash the process. Listeners are fire-and-forget side
+    // effects (notifications, analytics), so log and keep serving requests.
+    this.emitter.on('error', (err: unknown) => {
+      // eslint-disable-next-line no-console
+      console.error('[event-bus] listener failed', err);
+    });
+  }
+
   on<E extends keyof AppEvents>(event: E, listener: (payload: AppEvents[E]) => void | Promise<void>) {
     this.emitter.on(event, listener);
   }

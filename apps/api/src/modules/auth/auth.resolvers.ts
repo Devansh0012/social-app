@@ -1,4 +1,4 @@
-import type { GqlContext } from '../../graphql/context.js';
+import { userWithCollege, type GqlContext } from '../../graphql/context.js';
 import { AuthService } from './auth.service.js';
 import { NotFound } from '../../core/errors.js';
 
@@ -20,9 +20,7 @@ const requestMeta = (ctx: GqlContext) => ({
   userAgent: ctx.request.headers['user-agent'] ?? null,
 });
 
-const toViewer = (
-  user: Awaited<ReturnType<AuthService['signup']>>['user'] & { college?: unknown },
-) => ({
+const toViewer = (user: Awaited<ReturnType<AuthService['signup']>>['user']) => ({
   id: user.id,
   email: user.email,
   username: user.username,
@@ -48,10 +46,7 @@ export const authResolvers = {
   Query: {
     async me(_p: unknown, _a: unknown, ctx: GqlContext) {
       if (!ctx.viewer) return null;
-      const user = await ctx.prisma.user.findUnique({
-        where: { id: ctx.viewer.id },
-        include: { college: true },
-      });
+      const user = await userWithCollege(ctx.prisma, ctx.viewer.id);
       return user ? toViewer(user) : null;
     },
   },

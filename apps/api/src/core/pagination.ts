@@ -10,11 +10,19 @@ export interface Cursor {
   id: string;
 }
 
+/**
+ * Raw `first`/`after` args as they arrive at GraphQL resolvers, before
+ * validation through PaginationInput. Extend this in resolver arg interfaces.
+ */
+export interface PaginationArgs {
+  first?: number | null;
+  after?: string | null;
+}
+
 export const PaginationInput = z.object({
   first: z.number().int().min(1).max(50).default(20),
   after: z.string().nullish(),
 });
-export type PaginationInputT = z.infer<typeof PaginationInput>;
 
 export function encodeCursor(c: Cursor): string {
   return Buffer.from(JSON.stringify(c)).toString('base64url');

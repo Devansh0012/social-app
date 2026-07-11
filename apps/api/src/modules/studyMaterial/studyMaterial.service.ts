@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../core/prisma.js';
-import { NotFound, Validation } from '../../core/errors.js';
+import { NotFound, Validation, parseOrThrow } from '../../core/errors.js';
 import { eventBus } from '../../core/events/event-bus.js';
 import {
   buildConnection,
@@ -25,27 +25,26 @@ const CreateMaterialSchema = z.object({
 
 export class StudyMaterialService {
   async create(uploaderId: string, rawInput: unknown) {
-    const parsed = CreateMaterialSchema.safeParse(rawInput);
-    if (!parsed.success) throw Validation('Invalid input', parsed.error.flatten());
+    const input = parseOrThrow(CreateMaterialSchema, rawInput, 'Invalid input');
 
-    if (!parsed.data.fileKey && !parsed.data.externalUrl) {
+    if (!input.fileKey && !input.externalUrl) {
       throw Validation('A file upload or external URL is required');
     }
 
     return prisma.studyMaterial.create({
       data: {
         uploaderId,
-        title: parsed.data.title,
-        description: parsed.data.description,
-        collegeId: parsed.data.collegeId,
-        department: parsed.data.department,
-        semester: parsed.data.semester,
-        subject: parsed.data.subject,
-        tags: parsed.data.tags ?? [],
-        fileKey: parsed.data.fileKey,
-        fileMime: parsed.data.fileMime,
-        fileSize: parsed.data.fileSize,
-        externalUrl: parsed.data.externalUrl,
+        title: input.title,
+        description: input.description,
+        collegeId: input.collegeId,
+        department: input.department,
+        semester: input.semester,
+        subject: input.subject,
+        tags: input.tags ?? [],
+        fileKey: input.fileKey,
+        fileMime: input.fileMime,
+        fileSize: input.fileSize,
+        externalUrl: input.externalUrl,
       },
     });
   }

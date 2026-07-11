@@ -15,35 +15,26 @@ import {
   DELETE_COMMENT_MUTATION,
   POST_DETAIL_QUERY,
   UPDATE_COMMENT_MUTATION,
+  type CommentRow,
 } from '@/lib/queries';
 import { useAuthStore } from '@/lib/auth-store';
 import { relativeTime } from '@/lib/utils';
 
-interface CommentRow {
-  id: string;
-  postId: string;
+/** POST_DETAIL_QUERY additionally fetches `parentId` for threading. */
+interface ThreadedComment extends CommentRow {
   parentId: string | null;
-  body: string;
-  createdAt: string;
-  author: {
-    id: string;
-    username: string;
-    fullName: string;
-    avatarUrl: string | null;
-    isVerifiedStudent: boolean;
-  };
 }
 
 interface DetailResp {
   post: PostNode | null;
-  postComments: CommentRow[];
+  postComments: ThreadedComment[];
 }
 
-interface CommentTreeNode extends CommentRow {
+interface CommentTreeNode extends ThreadedComment {
   children: CommentTreeNode[];
 }
 
-function buildTree(rows: CommentRow[]): CommentTreeNode[] {
+function buildTree(rows: ThreadedComment[]): CommentTreeNode[] {
   const byId = new Map<string, CommentTreeNode>();
   rows.forEach((r) => byId.set(r.id, { ...r, children: [] }));
   const roots: CommentTreeNode[] = [];

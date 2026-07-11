@@ -1,5 +1,6 @@
 import type { Community } from '@prisma/client';
 import type { GqlContext } from '../../graphql/context.js';
+import type { PaginationArgs } from '../../core/pagination.js';
 import { communityService } from './community.service.js';
 
 interface SlugArgs {
@@ -8,10 +9,8 @@ interface SlugArgs {
 interface IdArgs {
   communityId: string;
 }
-interface ListArgs {
+interface ListArgs extends PaginationArgs {
   search?: string | null;
-  first?: number | null;
-  after?: string | null;
 }
 interface CreateArgs {
   input: Parameters<(typeof communityService)['create']>[1];

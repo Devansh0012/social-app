@@ -154,7 +154,7 @@ dig _resend._domainkey.braventex.in TXT
 ## Phase 7 — smoke test the whole loop
 
 1. Open https://braventex.in — landing page renders, SSL is green.
-2. `/signup` with a college email (or `@braventex.in` if you're using a seeded dev college). Confirm Resend dashboard shows a delivered email.
+2. `/signup` with a college email (or `@braventex.dev` if you're using the seeded dev college). Confirm Resend dashboard shows a delivered email.
 3. Click the verification link → `/onboarding`. Complete the flow.
 4. `/feed` shows the empty state. Open a community, post, like, comment.
 5. Open `/study-rooms` and start a room — confirm WS frames in the browser devtools (`Network → WS`).

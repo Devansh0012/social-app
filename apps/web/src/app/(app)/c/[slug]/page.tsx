@@ -6,7 +6,7 @@ import { Users } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { PostCard, type PostNode } from '@/components/post-card';
+import { PostCard, type PostConnection } from '@/components/post-card';
 import { PostComposer } from '@/components/post-composer';
 import { gql } from '@/lib/graphql-client';
 import {
@@ -34,10 +34,7 @@ interface CommunityResp {
 }
 
 interface FeedResp {
-  feed: {
-    nodes: PostNode[];
-    pageInfo: { hasNextPage: boolean; endCursor: string | null };
-  };
+  feed: PostConnection;
 }
 
 export default function CommunityPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -78,7 +75,8 @@ export default function CommunityPage({ params }: { params: Promise<{ slug: stri
       });
       qc.invalidateQueries({ queryKey: ['community', slug] });
     } catch {
-      // ignore — toast UI would go here
+      // Join/leave failed (network or auth) — swallow so the page stays usable.
+      // Error feedback is deferred until we have a toast component.
     }
   }
 

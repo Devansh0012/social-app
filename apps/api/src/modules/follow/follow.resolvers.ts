@@ -1,35 +1,23 @@
-import type { GqlContext } from '../../graphql/context.js';
+import { userIdByUsername, type GqlContext } from '../../graphql/context.js';
+import type { PaginationArgs } from '../../core/pagination.js';
 import { followService } from './follow.service.js';
-import { NotFound } from '../../core/errors.js';
 
 interface UsernameArgs {
   username: string;
 }
-interface ListArgs extends UsernameArgs {
-  first?: number | null;
-  after?: string | null;
-}
-
-async function userIdFromUsername(ctx: GqlContext, username: string): Promise<string> {
-  const u = await ctx.prisma.user.findUnique({
-    where: { username: username.toLowerCase() },
-    select: { id: true },
-  });
-  if (!u) throw NotFound('User not found');
-  return u.id;
-}
+interface ListArgs extends UsernameArgs, PaginationArgs {}
 
 export const followResolvers = {
   Query: {
     async followers(_p: unknown, args: ListArgs, ctx: GqlContext) {
-      const userId = await userIdFromUsername(ctx, args.username);
+      const userId = await userIdByUsername(ctx.prisma, args.username);
       return followService.listFollowers(userId, {
         first: args.first ?? undefined,
         after: args.after,
       });
     },
     async following(_p: unknown, args: ListArgs, ctx: GqlContext) {
-      const userId = await userIdFromUsername(ctx, args.username);
+      const userId = await userIdByUsername(ctx.prisma, args.username);
       return followService.listFollowing(userId, {
         first: args.first ?? undefined,
         after: args.after,

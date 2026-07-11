@@ -10,7 +10,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { PostCard, type PostNode } from '@/components/post-card';
 import { gql } from '@/lib/graphql-client';
-import { PUBLIC_USER_FRAGMENT } from '@/lib/queries';
+import { PUBLIC_USER_FRAGMENT, type PublicUser } from '@/lib/queries';
 
 const SEARCH_QUERY = /* GraphQL */ `
   query GlobalSearch($query: String!) {
@@ -70,7 +70,7 @@ const SEARCH_QUERY = /* GraphQL */ `
 
 interface SearchResp {
   search: {
-    users: Array<{ id: string; username: string; fullName: string; avatarUrl: string | null; college: { name: string } | null }>;
+    users: PublicUser[];
     communities: Array<{ id: string; slug: string; name: string; memberCount: number; tags: string[] }>;
     posts: PostNode[];
     materials: Array<{ id: string; title: string; description: string | null; downloadCount: number; subject: string | null; tags: string[] }>;

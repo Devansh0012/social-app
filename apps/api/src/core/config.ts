@@ -53,4 +53,3 @@ if (!parsed.success) {
 }
 
 export const config = parsed.data;
-export type AppConfig = typeof config;

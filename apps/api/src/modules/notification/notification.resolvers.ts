@@ -1,4 +1,4 @@
-import type { GqlContext } from '../../graphql/context.js';
+import { userWithCollege, type GqlContext } from '../../graphql/context.js';
 import { notificationService } from './notification.service.js';
 
 interface ListArgs {
@@ -36,10 +36,7 @@ export const notificationResolvers = {
   Notification: {
     async actor(parent: { actorId: string | null }, _a: unknown, ctx: GqlContext) {
       if (!parent.actorId) return null;
-      return ctx.prisma.user.findUnique({
-        where: { id: parent.actorId },
-        include: { college: true },
-      });
+      return userWithCollege(ctx.prisma, parent.actorId);
     },
   },
 };

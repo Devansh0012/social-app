@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../core/prisma.js';
-import { Forbidden, NotFound, Validation } from '../../core/errors.js';
+import { Forbidden, NotFound, parseOrThrow } from '../../core/errors.js';
 import { eventBus } from '../../core/events/event-bus.js';
 import { roomChannel, wsManager } from '../../core/ws/ws-manager.js';
 
@@ -21,12 +21,12 @@ const ChatMessageSchema = z.object({
  * same countdown as everyone else. Phase ends are computed from `startedAt`
  * + `durationSeconds`; we never store "time remaining".
  */
-export interface PomodoroState {
+export type PomodoroState = {
   phase: 'FOCUS' | 'SHORT_BREAK' | 'LONG_BREAK' | 'IDLE';
   startedAt: string | null;
   durationSeconds: number;
   cycle: number;
-}
+};
 
 const DEFAULT_POMODORO: PomodoroState = {
   phase: 'IDLE',
@@ -37,18 +37,17 @@ const DEFAULT_POMODORO: PomodoroState = {
 
 export class StudyRoomService {
   async create(creatorId: string, rawInput: unknown) {
-    const parsed = CreateRoomSchema.safeParse(rawInput);
-    if (!parsed.success) throw Validation('Invalid input', parsed.error.flatten());
+    const input = parseOrThrow(CreateRoomSchema, rawInput, 'Invalid input');
 
     return prisma.$transaction(async (tx) => {
       const room = await tx.studyRoom.create({
         data: {
           creatorId,
-          name: parsed.data.name,
-          description: parsed.data.description,
-          topic: parsed.data.topic,
-          maxParticipants: parsed.data.maxParticipants,
-          pomodoroState: { ...DEFAULT_POMODORO } as unknown as Prisma.InputJsonValue,
+          name: input.name,
+          description: input.description,
+          topic: input.topic,
+          maxParticipants: input.maxParticipants,
+          pomodoroState: { ...DEFAULT_POMODORO } satisfies Prisma.InputJsonValue,
         },
       });
       await tx.studyRoomMember.create({ data: { roomId: room.id, userId: creatorId } });
@@ -116,8 +115,7 @@ export class StudyRoomService {
   }
 
   async postMessage(userId: string, roomId: string, rawBody: unknown) {
-    const parsed = ChatMessageSchema.safeParse({ body: rawBody });
-    if (!parsed.success) throw Validation('Invalid message', parsed.error.flatten());
+    const input = parseOrThrow(ChatMessageSchema, { body: rawBody }, 'Invalid message');
 
     const member = await prisma.studyRoomMember.findUnique({
       where: { roomId_userId: { roomId, userId } },
@@ -125,7 +123,7 @@ export class StudyRoomService {
     if (!member || member.leftAt) throw Forbidden('Join the room before sending messages.');
 
     const message = await prisma.studyRoomMessage.create({
-      data: { roomId, authorId: userId, body: parsed.data.body },
+      data: { roomId, authorId: userId, body: input.body },
     });
     wsManager.publish(roomChannel(roomId), { type: 'CHAT_MESSAGE', data: { message } });
     return message;
@@ -149,7 +147,7 @@ export class StudyRoomService {
     };
     await prisma.studyRoom.update({
       where: { id: roomId },
-      data: { pomodoroState: next as unknown as Prisma.InputJsonValue },
+      data: { pomodoroState: next satisfies Prisma.InputJsonValue },
     });
     wsManager.publish(roomChannel(roomId), { type: 'POMODORO_TICK', data: next });
     return next;
@@ -161,7 +159,7 @@ export class StudyRoomService {
     const next: PomodoroState = { ...DEFAULT_POMODORO };
     await prisma.studyRoom.update({
       where: { id: roomId },
-      data: { pomodoroState: next as unknown as Prisma.InputJsonValue },
+      data: { pomodoroState: next satisfies Prisma.InputJsonValue },
     });
     wsManager.publish(roomChannel(roomId), { type: 'POMODORO_TICK', data: next });
     return next;
