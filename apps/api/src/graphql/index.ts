@@ -53,8 +53,13 @@ const rootResolvers = {
   },
 };
 
+/** The full SDL, also consumed by scripts/print-schema.ts for codegen. */
+export function buildSchemaSDL(): string {
+  return [rootTypeDefs, ...modules.map((m) => m.typeDefs)].join('\n');
+}
+
 export async function registerGraphQL(app: FastifyInstance): Promise<void> {
-  const schema = [rootTypeDefs, ...modules.map((m) => m.typeDefs)].join('\n');
+  const schema = buildSchemaSDL();
   const resolvers = modules.reduce<Record<string, unknown>>(
     (acc, m) => mergeResolvers(acc, m.resolvers),
     rootResolvers as Record<string, unknown>,

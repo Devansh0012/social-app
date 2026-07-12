@@ -81,8 +81,11 @@ export function PostCard({ post: initial }: { post: PostNode }) {
   const isOwner = viewer?.id === post.author.id;
 
   // Resync when the parent passes a refreshed version (e.g. feed re-fetch).
+  // Deps list the fields that matter rather than `initial` itself, so a new
+  // object identity with identical values doesn't clobber optimistic state.
   useEffect(() => {
     setPost(initial);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     initial.id,
     initial.likeCount,

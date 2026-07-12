@@ -48,6 +48,7 @@ const envWithPortFallback = {
 
 const parsed = schema.safeParse(envWithPortFallback);
 if (!parsed.success) {
+  // eslint-disable-next-line no-console -- config parses before the logger exists
   console.error('Invalid environment configuration:', parsed.error.flatten().fieldErrors);
   process.exit(1);
 }

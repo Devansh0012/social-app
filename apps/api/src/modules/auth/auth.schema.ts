@@ -66,6 +66,15 @@ export const authTypeDefs = /* GraphQL */ `
     password: String!
   }
 
+  type RequestPasswordResetPayload {
+    ok: Boolean!
+    """
+    In dev only — the raw reset token, so the frontend can drive the reset
+    flow without an email provider.
+    """
+    resetTokenDev: String
+  }
+
   extend type Query {
     me: Viewer
   }
@@ -76,6 +85,8 @@ export const authTypeDefs = /* GraphQL */ `
     refresh(refreshToken: String!): AuthPayload!
     verifyEmail(token: String!): Viewer!
     resendVerificationEmail: Boolean!
+    requestPasswordReset(email: String!): RequestPasswordResetPayload!
+    resetPassword(token: String!, newPassword: String!): Boolean!
     logout: Boolean!
   }
 `;

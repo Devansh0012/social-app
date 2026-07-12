@@ -93,6 +93,18 @@ export const authResolvers = {
       const service = new AuthService(ctx.app);
       return service.resendEmailVerification(viewer.id);
     },
+    async requestPasswordReset(_p: unknown, args: { email: string }, ctx: GqlContext) {
+      const service = new AuthService(ctx.app);
+      return service.requestPasswordReset(args.email);
+    },
+    async resetPassword(
+      _p: unknown,
+      args: { token: string; newPassword: string },
+      ctx: GqlContext,
+    ) {
+      const service = new AuthService(ctx.app);
+      return service.resetPassword(args);
+    },
     async logout(_p: unknown, _a: unknown, ctx: GqlContext) {
       // Refresh-token revocation happens on the next /refresh attempt.
       // With http-only refresh cookies we would clear it here.

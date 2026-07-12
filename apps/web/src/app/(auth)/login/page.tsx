@@ -82,6 +82,14 @@ export default function LoginPage() {
         <Button type="submit" disabled={submitting} className="mt-2">
           {submitting ? 'Logging in…' : 'Log in'}
         </Button>
+        <p className="text-right text-sm">
+          <Link
+            href="/forgot-password"
+            className="text-[var(--color-fg-muted)] hover:text-[var(--color-fg)] hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </p>
       </form>
       <p className="mt-4 text-center text-sm text-[var(--color-fg-muted)]">
         New here?{' '}

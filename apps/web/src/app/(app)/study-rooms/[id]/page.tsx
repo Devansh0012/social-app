@@ -150,7 +150,6 @@ export default function StudyRoomDetailPage({ params }: { params: Promise<{ id: 
       cancelled = true;
       ws?.close();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken, id]);
 
   useEffect(() => {

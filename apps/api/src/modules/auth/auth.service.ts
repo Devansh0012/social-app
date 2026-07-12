@@ -17,13 +17,12 @@ import {
 } from '../../core/auth/jwt.js';
 import { resolveCollegeForEmail } from '../../core/auth/college-email.js';
 import { config } from '../../core/config.js';
-import { emailDriver, verificationEmail } from '../../core/email/email.js';
+import { emailDriver, passwordResetEmail, verificationEmail } from '../../core/email/email.js';
 import {
   AccountBanned,
   BadRequest,
   CollegeEmailRequired,
   Conflict,
-  EmailNotVerified,
   NotFound,
   Unauthenticated,
   parseOrThrow,
@@ -45,6 +44,11 @@ const SignupSchema = z.object({
 const LoginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+});
+
+const ResetPasswordSchema = z.object({
+  token: z.string().min(1),
+  newPassword: z.string().min(8).max(128),
 });
 
 interface TokenPair {
@@ -184,6 +188,46 @@ export class AuthService {
     if (user.emailVerified) throw BadRequest('Email already verified');
     const token = await this.issueEmailVerification(userId);
     await this.sendVerificationEmail(user.email, user.fullName, token);
+    return true;
+  }
+
+  /* ---------------------------------------------- password reset flow */
+  async requestPasswordReset(email: string) {
+    const user = await this.repo.findUserByEmail(email);
+    // Always report success so the endpoint can't be used to probe which
+    // emails have accounts.
+    if (!user) return { ok: true, resetTokenDev: null };
+
+    const raw = crypto.randomBytes(32).toString('base64url');
+    const expiresAt = new Date(Date.now() + config.PASSWORD_RESET_TTL_SECONDS * 1000);
+    await this.repo.storePasswordResetToken(user.id, hashToken(raw), expiresAt);
+
+    const resetUrl = `${config.APP_PUBLIC_URL}/reset-password?token=${raw}`;
+    if (config.NODE_ENV !== 'production') {
+      this.app.log.info(`[auth] password-reset link: ${resetUrl}`);
+    }
+    try {
+      const tmpl = passwordResetEmail({ fullName: user.fullName, resetUrl });
+      await emailDriver.send({ ...tmpl, to: user.email });
+    } catch (err) {
+      this.app.log.error({ err }, '[auth] failed to send password-reset email');
+    }
+
+    return { ok: true, resetTokenDev: config.NODE_ENV === 'development' ? raw : null };
+  }
+
+  async resetPassword(rawInput: unknown) {
+    const input = parseOrThrow(ResetPasswordSchema, rawInput, 'Invalid password reset input');
+
+    const row = await this.repo.findPasswordResetToken(hashToken(input.token));
+    if (!row) throw BadRequest('Invalid or expired reset link');
+    if (row.consumedAt) throw BadRequest('This reset link has already been used');
+    if (row.expiresAt < new Date()) throw BadRequest('Invalid or expired reset link');
+
+    const passwordHash = await hashPassword(input.newPassword);
+    // Consuming also revokes every refresh token — a password reset must log
+    // out whoever holds the old credentials.
+    await this.repo.consumePasswordResetToken(row.id, row.userId, passwordHash);
     return true;
   }
 

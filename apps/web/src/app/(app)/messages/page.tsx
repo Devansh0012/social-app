@@ -50,7 +50,7 @@ export default function MessagesPage() {
         <Card className="grid place-items-center gap-2 py-10 text-center">
           <Inbox className="h-6 w-6 text-[var(--color-fg-muted)]" />
           <p className="text-[var(--color-fg-muted)]">
-            No conversations yet. Open someone's profile and tap{' '}
+            No conversations yet. Open someone&apos;s profile and tap{' '}
             <span className="text-[var(--color-fg)]">Message</span>.
           </p>
         </Card>

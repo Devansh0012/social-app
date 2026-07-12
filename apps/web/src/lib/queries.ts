@@ -174,6 +174,21 @@ export const VERIFY_EMAIL_MUTATION = /* GraphQL */ `
   ${VIEWER_FRAGMENT}
 `;
 
+export const REQUEST_PASSWORD_RESET_MUTATION = /* GraphQL */ `
+  mutation RequestPasswordReset($email: String!) {
+    requestPasswordReset(email: $email) {
+      ok
+      resetTokenDev
+    }
+  }
+`;
+
+export const RESET_PASSWORD_MUTATION = /* GraphQL */ `
+  mutation ResetPassword($token: String!, $newPassword: String!) {
+    resetPassword(token: $token, newPassword: $newPassword)
+  }
+`;
+
 export const FEED_QUERY = /* GraphQL */ `
   query Feed($kind: FeedKind!, $communityId: ID, $after: String) {
     feed(kind: $kind, communityId: $communityId, first: 20, after: $after) {

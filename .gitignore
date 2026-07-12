@@ -50,3 +50,7 @@ docker-compose.override.yml
 
 # Uploads (local dev)
 uploads/
+
+# Generated GraphQL artifacts (regenerate: schema:print + gql:check)
+apps/web/src/lib/gql-types.generated.ts
+apps/api/schema.graphql

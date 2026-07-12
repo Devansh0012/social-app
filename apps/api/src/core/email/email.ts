@@ -78,6 +78,27 @@ export function verificationEmail(args: { fullName: string; verifyUrl: string })
   return { to: '', subject, html, text };
 }
 
+export function passwordResetEmail(args: { fullName: string; resetUrl: string }): OutboundEmail {
+  const firstName = args.fullName.split(' ')[0] ?? 'there';
+  const subject = 'Reset your Braventex password';
+  const html = `
+    <div style="font-family:Inter,system-ui,sans-serif;line-height:1.5;color:#111">
+      <h2 style="margin:0 0 12px">Hey ${escape(firstName)},</h2>
+      <p>Someone asked to reset the password for your <strong>Braventex</strong> account.</p>
+      <p style="margin:24px 0">
+        <a href="${args.resetUrl}"
+           style="background:#6366f1;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;display:inline-block;font-weight:600">
+          Reset my password
+        </a>
+      </p>
+      <p style="color:#666;font-size:13px">Or paste this into your browser:<br>${escape(args.resetUrl)}</p>
+      <p style="color:#888;font-size:12px;margin-top:32px">The link expires soon. If you didn't ask for this, ignore this email — your password is unchanged.</p>
+    </div>
+  `;
+  const text = `Hey ${firstName},\nReset your Braventex password: ${args.resetUrl}\nIf you didn't ask for this, ignore this email.`;
+  return { to: '', subject, html, text };
+}
+
 function escape(s: string): string {
   return s
     .replace(/&/g, '&amp;')

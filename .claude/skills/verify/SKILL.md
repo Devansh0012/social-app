@@ -16,6 +16,12 @@ pnpm web:dev   # Next.js on :3000 (background; ~2s)
 curl -s http://localhost:4000/health
 ```
 
+Checks (all from repo root, all must pass): `pnpm typecheck`, `pnpm lint`,
+`pnpm test` (vitest integration tests against a separate `braventex_test` DB —
+auto-created/migrated by tests/global-setup.ts), `pnpm gql:check` (regenerates
+apps/api/schema.graphql and validates every web GraphQL document against it),
+`pnpm build`. CI (.github/workflows/ci.yml) runs the same sequence.
+
 Gotchas:
 - `pnpm` is not on PATH by default — always export the nvm bin path first.
 - Seed is idempotent for users/colleges/communities but **re-running it duplicates the two sample posts** (they use `create`, not upsert). Seed once.

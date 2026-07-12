@@ -62,6 +62,38 @@ export class AuthRepository {
     });
   }
 
+  async revokeAllRefreshTokensForUser(userId: string) {
+    await this.prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+
+  storePasswordResetToken(userId: string, tokenHash: string, expiresAt: Date) {
+    return this.prisma.passwordResetToken.create({
+      data: { userId, tokenHash, expiresAt },
+    });
+  }
+
+  findPasswordResetToken(tokenHash: string) {
+    return this.prisma.passwordResetToken.findUnique({ where: { tokenHash } });
+  }
+
+  /** Consume the token, set the new password, and log the user out everywhere. */
+  async consumePasswordResetToken(tokenId: string, userId: string, passwordHash: string) {
+    await this.prisma.$transaction([
+      this.prisma.passwordResetToken.update({
+        where: { id: tokenId },
+        data: { consumedAt: new Date() },
+      }),
+      this.prisma.user.update({ where: { id: userId }, data: { passwordHash } }),
+      // Hard-delete instead of soft-revoke: revoked tokens stay usable for
+      // 60s via the multi-tab rotation grace window, which must not apply
+      // to a security revocation.
+      this.prisma.refreshToken.deleteMany({ where: { userId } }),
+    ]);
+  }
+
   storeEmailVerificationToken(userId: string, tokenHash: string, expiresAt: Date) {
     return this.prisma.emailVerificationToken.create({
       data: { userId, tokenHash, expiresAt },
