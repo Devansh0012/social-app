@@ -1,7 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Role } from '@prisma/client';
 import { prisma } from '../core/prisma.js';
-import { Unauthenticated, Forbidden, NotFound } from '../core/errors.js';
+import { AccountBanned, Unauthenticated, Forbidden, NotFound } from '../core/errors.js';
 import type { AccessTokenPayload } from '../core/auth/jwt.js';
 
 export interface ViewerContext {
@@ -43,12 +43,24 @@ export async function buildContext(
   reply: FastifyReply,
 ): Promise<GqlContext> {
   let viewer: ViewerContext | null = null;
+  let banned = false;
   const authHeader = request.headers.authorization;
   if (authHeader?.startsWith('Bearer ')) {
     try {
       const payload = await request.server.jwt.verify<AccessTokenPayload>(authHeader.slice(7));
       if (payload.type === 'access') {
-        viewer = { id: payload.sub, username: payload.username, role: payload.role };
+        // Access tokens are stateless, so a ban must be enforced here or a
+        // banned user keeps full access until the token expires. One indexed
+        // PK lookup per authenticated request.
+        const user = await prisma.user.findUnique({
+          where: { id: payload.sub },
+          select: { status: true },
+        });
+        if (user?.status === 'BANNED') {
+          banned = true;
+        } else if (user) {
+          viewer = { id: payload.sub, username: payload.username, role: payload.role };
+        }
       }
     } catch {
       // unauthenticated request — viewer stays null
@@ -62,10 +74,12 @@ export async function buildContext(
     prisma,
     viewer,
     requireViewer() {
+      if (banned) throw AccountBanned();
       if (!viewer) throw Unauthenticated();
       return viewer;
     },
     requireAdmin() {
+      if (banned) throw AccountBanned();
       if (!viewer) throw Unauthenticated();
       if (viewer.role !== 'ADMIN') throw Forbidden('Admin access required');
       return viewer;

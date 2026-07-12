@@ -38,6 +38,13 @@ export async function registerWsRoutes(app: FastifyInstance): Promise<void> {
         socket.close(4004, 'room not found');
         return;
       }
+      const member = await prisma.studyRoomMember.findUnique({
+        where: { roomId_userId: { roomId, userId: viewer.sub } },
+      });
+      if (!member || member.leftAt) {
+        socket.close(4003, 'not a room member');
+        return;
+      }
 
       const channel = roomChannel(roomId);
       wsManager.join(channel, socket);
@@ -65,7 +72,14 @@ async function verifyWsToken(
   if (!query.token) return null;
   try {
     const decoded = await app.jwt.verify<AccessTokenPayload>(query.token);
-    return decoded.type === 'access' ? decoded : null;
+    if (decoded.type !== 'access') return null;
+    // Enforce bans on socket connects too — access tokens are stateless.
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.sub },
+      select: { status: true },
+    });
+    if (!user || user.status === 'BANNED') return null;
+    return decoded;
   } catch {
     return null;
   }

@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Send, Users, Play, Pause } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { toastError } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -117,28 +118,38 @@ export default function StudyRoomDetailPage({ params }: { params: Promise<{ id: 
 
   useEffect(() => {
     if (!accessToken) return;
-    void gql(JOIN_MUTATION, { roomId: id });
-    const ws = new WebSocket(`${env.wsUrl}/rooms/${id}?token=${accessToken}`);
-    wsRef.current = ws;
-    ws.onmessage = (evt) => {
-      try {
-        const envelope = JSON.parse(evt.data as string) as {
-          type: string;
-          data: unknown;
+    let ws: WebSocket | null = null;
+    let cancelled = false;
+    // Join before connecting — the room socket rejects non-members.
+    gql(JOIN_MUTATION, { roomId: id })
+      .then(() => {
+        if (cancelled) return;
+        ws = new WebSocket(`${env.wsUrl}/rooms/${id}?token=${accessToken}`);
+        wsRef.current = ws;
+        ws.onmessage = (evt) => {
+          try {
+            const envelope = JSON.parse(evt.data as string) as {
+              type: string;
+              data: unknown;
+            };
+            if (envelope.type === 'CHAT_MESSAGE') {
+              const m = (envelope.data as { message: ChatMessage }).message;
+              setMessages((prev) => [...prev, m]);
+            } else if (envelope.type === 'POMODORO_TICK') {
+              setPomodoro(envelope.data as typeof pomodoro);
+            } else if (envelope.type === 'PRESENCE_JOINED' || envelope.type === 'PRESENCE_LEFT') {
+              setPresence((envelope.data as { count: number }).count);
+            }
+          } catch {
+            // ignore malformed frames
+          }
         };
-        if (envelope.type === 'CHAT_MESSAGE') {
-          const m = (envelope.data as { message: ChatMessage }).message;
-          setMessages((prev) => [...prev, m]);
-        } else if (envelope.type === 'POMODORO_TICK') {
-          setPomodoro(envelope.data as typeof pomodoro);
-        } else if (envelope.type === 'PRESENCE_JOINED' || envelope.type === 'PRESENCE_LEFT') {
-          setPresence((envelope.data as { count: number }).count);
-        }
-      } catch {
-        // ignore malformed frames
-      }
+      })
+      .catch((err) => toastError(err, 'Could not join the room'));
+    return () => {
+      cancelled = true;
+      ws?.close();
     };
-    return () => ws.close();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken, id]);
 
@@ -153,8 +164,9 @@ export default function StudyRoomDetailPage({ params }: { params: Promise<{ id: 
     try {
       await gql(SEND_MUTATION, { roomId: id, body: text });
     } catch (err) {
-      // restore on failure
+      // Restore the draft so the user can retry.
       setBody(text);
+      toastError(err, 'Message failed to send');
     }
   }
 

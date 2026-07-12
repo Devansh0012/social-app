@@ -352,6 +352,12 @@ export const MARK_NOTIFICATION_READ_MUTATION = /* GraphQL */ `
   }
 `;
 
+export const MARK_ALL_NOTIFICATIONS_READ_MUTATION = /* GraphQL */ `
+  mutation MarkAllNotificationsRead {
+    markAllNotificationsRead
+  }
+`;
+
 export const STUDY_ROOMS_QUERY = /* GraphQL */ `
   query StudyRooms {
     studyRooms {

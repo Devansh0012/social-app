@@ -5,6 +5,7 @@ import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-quer
 import { Users } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { toastError } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { PostCard, type PostConnection } from '@/components/post-card';
 import { PostComposer } from '@/components/post-composer';
@@ -74,9 +75,8 @@ export default function CommunityPage({ params }: { params: Promise<{ slug: stri
         communityId: c.id,
       });
       qc.invalidateQueries({ queryKey: ['community', slug] });
-    } catch {
-      // Join/leave failed (network or auth) — swallow so the page stays usable.
-      // Error feedback is deferred until we have a toast component.
+    } catch (err) {
+      toastError(err, isMember ? 'Could not leave community' : 'Could not join community');
     }
   }
 

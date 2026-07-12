@@ -7,6 +7,7 @@ import { FEED_QUERY } from '@/lib/queries';
 import { Button } from '@/components/ui/button';
 import { PostCard, type PostConnection } from '@/components/post-card';
 import { PostComposer } from '@/components/post-composer';
+import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 
 type FeedKind = 'PERSONALIZED' | 'GLOBAL' | 'TRENDING';
@@ -37,7 +38,15 @@ export default function FeedPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PostComposer onPosted={() => qc.invalidateQueries({ queryKey: ['feed'] })} />
+      <PostComposer
+        onPosted={() => {
+          qc.invalidateQueries({ queryKey: ['feed'] });
+          // The "For you" ranker intentionally excludes your own posts, so
+          // switch to Global where the new post is visible at the top.
+          if (kind === 'PERSONALIZED') setKind('GLOBAL');
+          toast('Posted', 'success');
+        }}
+      />
 
       <div className="sticky top-14 z-20 -mx-4 flex gap-1 border-b border-[var(--color-border)] bg-[color-mix(in_oklab,var(--color-bg)_92%,transparent)] px-4 backdrop-blur md:mx-0 md:rounded-lg md:border md:px-2 md:py-1">
         {TABS.map((t) => {

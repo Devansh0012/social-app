@@ -17,6 +17,7 @@ import {
 import { type ReactNode, useEffect } from 'react';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Toaster } from '@/components/ui/toast';
 import { useAuthHydrated, useAuthStore } from '@/lib/auth-store';
 import { cn } from '@/lib/utils';
 import { gql } from '@/lib/graphql-client';
@@ -168,6 +169,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main className="mx-auto w-full max-w-4xl px-4 py-6 pb-24 md:px-8 md:pb-10">
           {children}
         </main>
+
+        <Toaster />
 
         <nav className="fixed inset-x-0 bottom-0 z-40 flex justify-around border-t border-[var(--color-border)] bg-[color-mix(in_oklab,var(--color-bg)_92%,transparent)] backdrop-blur md:hidden">
           {NAV.filter((n) => !n.adminOnly || viewer.role === 'ADMIN')

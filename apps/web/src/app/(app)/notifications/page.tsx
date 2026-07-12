@@ -2,12 +2,14 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Heart, MessageCircle, UserPlus, Sparkles } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { gql } from '@/lib/graphql-client';
 import {
+  MARK_ALL_NOTIFICATIONS_READ_MUTATION,
   MARK_NOTIFICATION_READ_MUTATION,
   NOTIFICATIONS_QUERY,
   type PublicUser,
@@ -28,6 +30,7 @@ interface NotificationsResp {
 
 export default function NotificationsPage() {
   const qc = useQueryClient();
+  const router = useRouter();
   const query = useQuery({
     queryKey: ['notifications'],
     queryFn: () => gql<NotificationsResp>(NOTIFICATIONS_QUERY, { unreadOnly: false }),
@@ -38,13 +41,33 @@ export default function NotificationsPage() {
     qc.invalidateQueries({ queryKey: ['notifications'] });
   }
 
+  async function markAllRead() {
+    await gql(MARK_ALL_NOTIFICATIONS_READ_MUTATION);
+    qc.invalidateQueries({ queryKey: ['notifications'] });
+  }
+
+  function open(n: NotificationsResp['notifications'][number]) {
+    if (!n.readAt) void markRead(n.id);
+    const href = targetHref(n);
+    if (href) router.push(href);
+  }
+
+  const hasUnread = (query.data?.unreadNotificationCount ?? 0) > 0;
+
   return (
     <div className="flex flex-col gap-3">
       <header className="flex items-center justify-between">
         <h1 className="font-display text-2xl font-bold">Notifications</h1>
-        <Button variant="ghost" onClick={() => qc.invalidateQueries({ queryKey: ['notifications'] })}>
-          Refresh
-        </Button>
+        <div className="flex items-center gap-1">
+          {hasUnread ? (
+            <Button variant="ghost" onClick={markAllRead}>
+              Mark all read
+            </Button>
+          ) : null}
+          <Button variant="ghost" onClick={() => qc.invalidateQueries({ queryKey: ['notifications'] })}>
+            Refresh
+          </Button>
+        </div>
       </header>
       {query.isLoading ? (
         <div className="py-10 text-center text-[var(--color-fg-muted)]">Loading…</div>
@@ -55,7 +78,7 @@ export default function NotificationsPage() {
           {query.data?.notifications.map((n) => (
             <button
               key={n.id}
-              onClick={() => !n.readAt && markRead(n.id)}
+              onClick={() => open(n)}
               className={cn(
                 'bx-card flex w-full items-center gap-3 p-4 text-left transition hover:border-[var(--color-border-strong)]',
                 !n.readAt && 'border-[var(--color-brand)]/40 bg-[var(--color-brand)]/5',
@@ -88,6 +111,18 @@ export default function NotificationsPage() {
       )}
     </div>
   );
+}
+
+/** Where clicking a notification should take the user, based on its payload. */
+function targetHref(n: NotificationsResp['notifications'][number]): string | null {
+  const { postId, conversationId } = n.payload as {
+    postId?: string;
+    conversationId?: string;
+  };
+  if (n.type === 'NEW_DM' && conversationId) return `/messages/${conversationId}`;
+  if (n.type === 'NEW_FOLLOWER' && n.actor) return `/u/${n.actor.username}`;
+  if (postId) return `/p/${postId}`;
+  return null;
 }
 
 function NotificationIcon({ type }: { type: string }) {

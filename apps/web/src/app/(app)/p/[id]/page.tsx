@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ArrowLeft, MessageCircle, Pencil, Trash2 } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { toastError } from '@/components/ui/toast';
 import { Card } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/input';
 import { PostCard, type PostNode } from '@/components/post-card';
@@ -125,6 +126,8 @@ function CommentNode({ node, postId, depth }: { node: CommentTreeNode; postId: s
       await gql(UPDATE_COMMENT_MUTATION, { commentId: node.id, body });
       setEditing(false);
       qc.invalidateQueries({ queryKey: ['post', postId] });
+    } catch (err) {
+      toastError(err, 'Could not save comment');
     } finally {
       setBusy(false);
     }

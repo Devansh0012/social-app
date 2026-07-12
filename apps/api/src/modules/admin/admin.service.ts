@@ -59,9 +59,19 @@ export class AdminService {
   async removePost(postId: string) {
     const post = await prisma.post.findUnique({ where: { id: postId } });
     if (!post) throw NotFound('Post not found');
-    return prisma.post.update({
-      where: { id: postId },
-      data: { removedByAdmin: true, deletedAt: new Date() },
+    return prisma.$transaction(async (tx) => {
+      const removed = await tx.post.update({
+        where: { id: postId },
+        data: { removedByAdmin: true, deletedAt: new Date() },
+      });
+      // Keep the community's denormalized counter in sync, same as post.delete.
+      if (post.communityId && !post.deletedAt) {
+        await tx.community.update({
+          where: { id: post.communityId },
+          data: { postCount: { decrement: 1 } },
+        });
+      }
+      return removed;
     });
   }
 

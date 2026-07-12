@@ -124,6 +124,9 @@ export class StudyRoomService {
 
     const message = await prisma.studyRoomMessage.create({
       data: { roomId, authorId: userId, body: input.body },
+      // The WS frame is consumed directly by clients (no GraphQL field
+      // resolvers run on it), so the author must be embedded — same as DM_NEW.
+      include: { author: { include: { college: true } } },
     });
     wsManager.publish(roomChannel(roomId), { type: 'CHAT_MESSAGE', data: { message } });
     return message;

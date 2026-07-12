@@ -157,40 +157,60 @@ async function main() {
   const aiCommunity = await prisma.community.findUnique({ where: { slug: 'ai' } });
   const hackCommunity = await prisma.community.findUnique({ where: { slug: 'hackathons' } });
   if (aiCommunity) {
-    await prisma.post.create({
-      data: {
-        authorId: student.id,
-        communityId: aiCommunity.id,
-        type: 'TEXT',
-        title: 'Reading group: papers on retrieval augmentation',
-        body: 'Anyone interested in a weekly paper club? Drop a comment with your favorite RAG paper.',
-        tags: ['ai', 'reading-group'],
-      },
+    const title = 'Reading group: papers on retrieval augmentation';
+    const exists = await prisma.post.findFirst({
+      where: { authorId: student.id, communityId: aiCommunity.id, title },
     });
+    if (!exists) {
+      await prisma.post.create({
+        data: {
+          authorId: student.id,
+          communityId: aiCommunity.id,
+          type: 'TEXT',
+          title,
+          body: 'Anyone interested in a weekly paper club? Drop a comment with your favorite RAG paper.',
+          tags: ['ai', 'reading-group'],
+        },
+      });
+      await prisma.community.update({
+        where: { id: aiCommunity.id },
+        data: { postCount: { increment: 1 } },
+      });
+    }
   }
   if (hackCommunity) {
-    const collabPost = await prisma.post.create({
-      data: {
-        authorId: admin.id,
-        communityId: hackCommunity.id,
-        type: 'COLLAB',
-        title: 'Looking for a designer for HackMIT',
-        body: 'Building a campus tool. Need someone strong in product UX.',
-        tags: ['hackathon', 'design'],
-      },
+    const title = 'Looking for a designer for HackMIT';
+    const exists = await prisma.post.findFirst({
+      where: { authorId: admin.id, communityId: hackCommunity.id, title },
     });
-    await prisma.collabPost.create({
-      data: {
-        postId: collabPost.id,
-        projectTitle: 'Braventex × HackMIT',
-        requiredSkills: ['Figma', 'UX', 'Design Systems'],
-        projectType: 'HACKATHON',
-        duration: 'SHORT',
-        teamSize: 4,
-        locationType: 'HYBRID',
-        openSlots: 1,
-      },
-    });
+    if (!exists) {
+      const collabPost = await prisma.post.create({
+        data: {
+          authorId: admin.id,
+          communityId: hackCommunity.id,
+          type: 'COLLAB',
+          title,
+          body: 'Building a campus tool. Need someone strong in product UX.',
+          tags: ['hackathon', 'design'],
+        },
+      });
+      await prisma.collabPost.create({
+        data: {
+          postId: collabPost.id,
+          projectTitle: 'Braventex × HackMIT',
+          requiredSkills: ['Figma', 'UX', 'Design Systems'],
+          projectType: 'HACKATHON',
+          duration: 'SHORT',
+          teamSize: 4,
+          locationType: 'HYBRID',
+          openSlots: 1,
+        },
+      });
+      await prisma.community.update({
+        where: { id: hackCommunity.id },
+        data: { postCount: { increment: 1 } },
+      });
+    }
   }
 
   console.log('Done.');

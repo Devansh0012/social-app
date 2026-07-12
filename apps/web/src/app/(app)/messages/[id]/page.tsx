@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ArrowLeft, Send } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
+import { toastError } from '@/components/ui/toast';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { gql } from '@/lib/graphql-client';
@@ -117,9 +118,10 @@ export default function ConversationPage({ params }: { params: Promise<{ id: str
       setMessages((prev) =>
         prev.some((m) => m.id === data.sendMessage.id) ? prev : [...prev, data.sendMessage],
       );
-    } catch {
-      // Send failed — restore the draft so the user can retry.
+    } catch (err) {
+      // Restore the draft so the user can retry.
       setBody(text);
+      toastError(err, 'Message failed to send');
     } finally {
       setSending(false);
     }
